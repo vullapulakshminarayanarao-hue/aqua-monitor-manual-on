@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Water Level Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════
+   THEMES
+══════════════════════════════════════════ */
+[data-theme="night"] {
+  --bg:         #04100a;
+  --bg2:        #071510;
+  --panel:      #081a10;
+  --panel2:     #0b2218;
+  --border:     #0f3820;
+  --border2:    #1a5030;
+  --g1:         #00ff88;   /* primary green */
+  --g2:         #00e06a;   /* mid green */
+  --g3:         #00c455;   /* deep green */
+  --g4:         #33ffaa;   /* light green */
+  --g5:         rgba(0,255,136,0.08);
+  --blue:       #00d4ff;
+  --yellow:     #ffd600;
+  --warn:       #ff9100;
+  --danger:     #ff2d55;
+  --text:       #d0f0e0;
+  --text2:      #5a9070;
+  --muted:      #2a5038;
+  --glow:       rgba(0,255,136,0.15);
+  --glow-strong:rgba(0,255,136,0.35);
+  --shadow:     rgba(0,0,0,0.6);
+}
+[data-theme="day"] {
+  --bg:         #eaf7f0;
+  --bg2:        #d5f0e2;
+  --panel:      #ffffff;
+  --panel2:     #f0faf4;
+  --border:     #b0dfc0;
+  --border2:    #80c8a0;
+  --g1:         #00a050;
+  --g2:         #007a3a;
+  --g3:         #005a28;
+  --g4:         #33b86e;
+  --g5:         rgba(0,160,80,0.07);
+  --blue:       #0095cc;
+  --yellow:     #c8a000;
+  --warn:       #cc6000;
+  --danger:     #cc1a35;
+  --text:       #0a2818;
+  --text2:      #3a7055;
+  --muted:      #7ab090;
+  --glow:       rgba(0,160,80,0.12);
+  --glow-strong:rgba(0,160,80,0.3);
+  --shadow:     rgba(0,0,0,0.08);
+}
+
+/* ══════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+  transition:background .5s,color .5s;
+}
+
+/* animated scan lines */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.012) 2px,rgba(0,255,136,0.012) 4px);
+  pointer-events:none;z-index:9999;
+  animation:scan 8s linear infinite;
+}
+@keyframes scan{0%{background-position:0 0}100%{background-position:0 100px}}
+[data-theme="day"] body::after{opacity:0.3;}
+
+/* grid bg */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,255,136,0.025) 1px,transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;z-index:0;
+}
+[data-theme="day"] body::before{background-image:linear-gradient(rgba(0,160,80,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,160,80,0.04) 1px,transparent 1px);}
+
+/* ══════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════ */
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:12px 14px;}
+
+/* ══════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════ */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 20px;
+  background:linear-gradient(135deg,var(--panel2),var(--panel));
+  border:1px solid var(--border2);
+  border-radius:18px;
+  margin-bottom:16px;
+  box-shadow:0 0 30px var(--glow),0 4px 20px var(--shadow);
+  gap:12px;flex-wrap:wrap;
+}
+.hdr-left{display:flex;align-items:center;gap:14px;}
+.app-icon{
+  width:48px;height:48px;border-radius:14px;
+  background:linear-gradient(135deg,var(--g1),var(--g3));
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;
+  box-shadow:0 0 20px var(--glow-strong);
+  flex-shrink:0;
+}
+.app-title{
+  font-family:'Orbitron',monospace;
+  font-size:1.1rem;font-weight:900;
+  color:var(--g1);letter-spacing:2px;
+  text-shadow:0 0 20px var(--glow-strong);
+}
+.app-sub{font-size:0.7rem;color:var(--text2);letter-spacing:1px;font-family:'Share Tech Mono',monospace;margin-top:2px;}
+
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+
+.clock-box{
+  font-family:'Orbitron',monospace;font-size:0.85rem;
+  color:var(--g4);letter-spacing:2px;
+  background:var(--bg2);border:1px solid var(--border);
+  padding:6px 12px;border-radius:8px;
+}
+
+.theme-btn{
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg2);border:1px solid var(--border2);
+  color:var(--g1);border-radius:30px;padding:7px 14px;
+  cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:0.7rem;
+  transition:all .3s;letter-spacing:1px;
+}
+.theme-btn:hover{border-color:var(--g1);background:var(--g5);}
+.toggle-pill{width:32px;height:16px;background:var(--border2);border-radius:8px;position:relative;transition:.3s;}
+[data-theme="day"] .toggle-pill{background:var(--g2);}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 0 6px var(--glow);}
+[data-theme="day"] .toggle-thumb{transform:translateX(16px);}
+
+.live-pill{
+  display:flex;align-items:center;gap:7px;
+  font-family:'Share Tech Mono',monospace;font-size:0.68rem;
+  color:var(--text2);background:var(--bg2);
+  border:1px solid var(--border);border-radius:20px;padding:6px 12px;
+}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);}
+.live-dot.on{background:var(--g1);box-shadow:0 0 8px var(--g1);animation:blink 1.4s ease infinite;}
+.live-dot.err{background:var(--danger);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ══════════════════════════════════════════
+   SECTION DIVIDER
+══════════════════════════════════════════ */
+.sec{
+  display:flex;align-items:center;gap:10px;
+  margin:18px 0 10px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:0.6rem;letter-spacing:3px;color:var(--text2);text-transform:uppercase;
+}
+.sec::before,.sec::after{content:'';flex:1;height:1px;background:var(--border);}
+.sec::before{flex:0 0 20px;}
+
+/* ══════════════════════════════════════════
+   GRID LAYOUTS
+══════════════════════════════════════════ */
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.g1{display:grid;grid-template-columns:1fr;gap:10px;}
+
+@media(max-width:1000px){.g5{grid-template-columns:repeat(3,1fr);}.g4{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:700px){.g5,.g4,.g3{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:420px){.g5,.g4,.g3,.g2{grid-template-columns:1fr;}}
+.s2{grid-column:span 2;}
+.fw{grid-column:1/-1;}
+
+/* ══════════════════════════════════════════
+   BASE CARD
+══════════════════════════════════════════ */
+.card{
+  background:linear-gradient(145deg,var(--panel2),var(--panel));
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  position:relative;
+  overflow:hidden;
+  transition:transform .2s,box-shadow .2s,background .5s,border .5s;
+  box-shadow:0 2px 16px var(--shadow);
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 28px var(--shadow),0 0 20px var(--glow);}
+
+/* top accent bar */
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--g1) 0%,var(--g3) 60%,transparent 100%);
+  border-radius:16px 16px 0 0;
+}
+.card.c-blue::before{background:linear-gradient(90deg,var(--blue),transparent);}
+.card.c-warn::before{background:linear-gradient(90deg,var(--warn),transparent);}
+.card.c-danger::before{background:linear-gradient(90deg,var(--danger),transparent);}
+.card.c-yellow::before{background:linear-gradient(90deg,var(--yellow),transparent);}
+.card.c-purple::before{background:linear-gradient(90deg,#a855f7,transparent);}
+
+/* corner glow */
+.card::after{
+  content:'';position:absolute;top:-20px;right:-20px;
+  width:80px;height:80px;border-radius:50%;
+  background:radial-gradient(circle,var(--g5) 0%,transparent 70%);
+  pointer-events:none;
+}
+.card.c-blue::after{background:radial-gradient(circle,rgba(0,212,255,0.06) 0%,transparent 70%);}
+.card.c-warn::after{background:radial-gradient(circle,rgba(255,145,0,0.06) 0%,transparent 70%);}
+.card.c-danger::after{background:radial-gradient(circle,rgba(255,45,85,0.06) 0%,transparent 70%);}
+.card.c-yellow::after{background:radial-gradient(circle,rgba(255,214,0,0.06) 0%,transparent 70%);}
+
+/* ══════════════════════════════════════════
+   CARD TYPOGRAPHY
+══════════════════════════════════════════ */
+.clabel{
+  font-family:'Share Tech Mono',monospace;
+  font-size:0.58rem;letter-spacing:2.5px;
+  color:var(--text2);text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.clabel-icon{font-size:0.85rem;}
+.cval{
+  font-family:'Orbitron',monospace;
+  font-size:2.2rem;font-weight:700;
+  color:var(--g1);line-height:1;
+  text-shadow:0 0 20px var(--glow-strong);
+}
+.cval.lg{font-size:3rem;}
+.cval.sm{font-size:1.5rem;}
+.cval.xs{font-size:1.1rem;}
+.cunit{font-size:0.7em;color:var(--text2);font-weight:400;margin-left:2px;}
+.csub{
+  font-family:'Share Tech Mono',monospace;
+  font-size:0.6rem;color:var(--text2);
+  margin-top:5px;word-break:break-all;
+  line-height:1.4;
+}
+
+/* ══════════════════════════════════════════
+   ALERT BANNER
+══════════════════════════════════════════ */
+#alert-bar{
+  display:none;padding:10px 16px;border-radius:12px;
+  font-family:'Share Tech Mono',monospace;font-size:0.72rem;
+  align-items:center;gap:10px;margin-bottom:12px;
+  animation:slideDown .4s ease;
+}
+#alert-bar.show{display:flex;}
+#alert-bar.g{background:rgba(0,255,136,0.07);border:1px solid var(--g2);color:var(--g1);}
+#alert-bar.w{background:rgba(255,145,0,0.08);border:1px solid var(--warn);color:var(--warn);}
+#alert-bar.d{background:rgba(255,45,85,0.08);border:1px solid var(--danger);color:var(--danger);}
+@keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══════════════════════════════════════════
+   ① MAIN TANK TILE
+══════════════════════════════════════════ */
+.tank-card{padding:20px;}
+.tank-scene{
+  display:flex;justify-content:center;align-items:flex-end;
+  gap:24px;margin:10px 0 14px;
+}
+.tank-unit{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.tank-shell{
+  position:relative;
+  border:2px solid var(--border2);
+  border-radius:6px 6px 12px 12px;
+  overflow:hidden;
+  background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+}
+.tank-shell.main-tank{width:80px;height:140px;}
+.tank-shell.sump-tank{width:60px;height:100px;}
+.t-water{
+  position:absolute;bottom:0;left:0;right:0;
+  transition:height 1.4s cubic-bezier(.4,0,.2,1);
+}
+/* main tank water — green */
+.main-tank .t-water{
+  background:linear-gradient(180deg,
+    rgba(0,255,136,0.75) 0%,
+    rgba(0,180,80,0.4)  60%,
+    rgba(0,120,50,0.2)  100%);
+  border-top:2px solid var(--g1);
+  box-shadow:0 -4px 16px rgba(0,255,136,0.3);
+}
+/* sump tank water — blue */
+.sump-tank .t-water{
+  background:linear-gradient(180deg,
+    rgba(0,212,255,0.65) 0%,
+    rgba(0,140,200,0.35) 60%,
+    rgba(0,80,150,0.15)  100%);
+  border-top:2px solid var(--blue);
+  box-shadow:0 -4px 12px rgba(0,212,255,0.3);
+}
+/* wave on top */
+.t-wave{
+  position:absolute;top:-5px;left:-10px;right:-10px;height:10px;
+  border-radius:50%;
+  animation:wave 2.2s ease-in-out infinite;
+}
+.main-tank .t-wave{background:rgba(0,255,136,0.4);}
+.sump-tank .t-wave{background:rgba(0,212,255,0.4);}
+@keyframes wave{0%,100%{transform:translateX(0) scaleX(1)}50%{transform:translateX(6px) scaleX(1.05)}}
+
+/* level markers */
+.t-markers{position:absolute;right:0;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-between;padding:4px 0;}
+.t-mark{display:flex;align-items:center;gap:2px;}
+.t-mark-line{width:6px;height:1px;background:var(--border2);}
+.t-mark-pct{font-family:'Share Tech Mono',monospace;font-size:0.42rem;color:var(--muted);}
+
+.t-label{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-family:'Orbitron',monospace;font-size:0.8rem;font-weight:700;
+  color:#fff;text-shadow:0 0 10px rgba(0,0,0,0.9),0 0 4px rgba(0,0,0,1);
+  white-space:nowrap;z-index:2;
+}
+.t-name{
+  font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+  letter-spacing:1px;color:var(--text2);
+}
+
+/* big level pct */
+.level-big{
+  font-family:'Orbitron',monospace;font-size:2.8rem;font-weight:900;
+  color:var(--g1);line-height:1;
+  text-shadow:0 0 30px var(--glow-strong);
+}
+.level-big .pct{font-size:1.2rem;color:var(--text2);}
+
+/* progress arc */
+.arc-wrap{display:flex;justify-content:center;margin:6px 0;}
+.arc-svg{overflow:visible;}
+.arc-track{fill:none;stroke:var(--border2);stroke-width:8;stroke-linecap:round;}
+.arc-fill{fill:none;stroke:var(--g1);stroke-width:8;stroke-linecap:round;stroke-dasharray:251;stroke-dashoffset:251;transition:stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1);filter:drop-shadow(0 0 6px var(--g1));}
+.arc-fill.warn{stroke:var(--warn);}
+.arc-fill.danger{stroke:var(--danger);}
+
+/* ══════════════════════════════════════════
+   ② MOTOR TILE
+══════════════════════════════════════════ */
+.motor-ring{
+  width:72px;height:72px;border-radius:50%;
+  border:3px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;
+  position:relative;
+  margin:8px auto;
+  transition:all .5s;
+  background:var(--bg2);
+}
+.motor-ring.on{
+  border-color:var(--g1);
+  box-shadow:0 0 0 6px rgba(0,255,136,0.1),0 0 30px rgba(0,255,136,0.3);
+  animation:motor-pulse 2s ease infinite;
+}
+@keyframes motor-pulse{0%,100%{box-shadow:0 0 0 6px rgba(0,255,136,0.1),0 0 30px rgba(0,255,136,0.3)}50%{box-shadow:0 0 0 12px rgba(0,255,136,0.05),0 0 50px rgba(0,255,136,0.4)}}
+.motor-ring.on::before{
+  content:'';position:absolute;inset:-8px;border-radius:50%;
+  border:1px solid rgba(0,255,136,0.2);
+  animation:expand 2s ease infinite;
+}
+@keyframes expand{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.3);opacity:0}}
+.motor-label{
+  font-family:'Orbitron',monospace;font-size:1rem;font-weight:700;
+  text-align:center;letter-spacing:2px;margin:4px 0;
+}
+.motor-label.on{color:var(--g1);text-shadow:0 0 15px var(--g1);}
+.motor-label.off{color:var(--muted);}
+.motor-badge{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:'Share Tech Mono',monospace;font-size:0.62rem;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:20px;padding:4px 10px;margin:4px auto;width:fit-content;
+  color:var(--text2);
+}
+.motor-badge-dot{width:6px;height:6px;border-radius:50%;}
+
+/* ══════════════════════════════════════════
+   ③ POWER TILE
+══════════════════════════════════════════ */
+.volt-arc{position:relative;width:90px;height:50px;margin:8px auto 4px;overflow:visible;}
+.bolt-icon{
+  font-size:2rem;display:block;text-align:center;
+  margin:6px 0 2px;
+  filter:drop-shadow(0 0 10px var(--yellow));
+}
+
+/* ══════════════════════════════════════════
+   ④ CONNECTION TILE
+══════════════════════════════════════════ */
+.signal-row{display:flex;align-items:flex-end;gap:3px;height:24px;margin:8px 0;}
+.sig-bar{border-radius:2px 2px 0 0;transition:background .4s,height .4s;}
+.sig-bar.on{background:var(--g1);box-shadow:0 0 6px var(--g1);}
+.sig-bar.off{background:var(--border2);}
+
+/* latency badge */
+.lat-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:'Share Tech Mono',monospace;font-size:0.65rem;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:6px;padding:3px 8px;color:var(--text2);
+  margin-top:4px;
+}
+
+/* ══════════════════════════════════════════
+   ⑤ PROGRESS BAR COMPONENT
+══════════════════════════════════════════ */
+.pbar-wrap{margin-top:10px;}
+.pbar-track{
+  height:6px;border-radius:3px;
+  background:var(--border2);overflow:hidden;
+  position:relative;
+}
+.pbar-fill{
+  height:100%;border-radius:3px;
+  background:linear-gradient(90deg,var(--g3),var(--g1));
+  transition:width 1.2s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 0 8px var(--g1);
+}
+.pbar-fill.blue{background:linear-gradient(90deg,#0080b0,var(--blue));box-shadow:0 0 8px var(--blue);}
+.pbar-fill.warn{background:linear-gradient(90deg,#b05000,var(--warn));box-shadow:0 0 8px var(--warn);}
+.pbar-fill.danger{background:linear-gradient(90deg,#900020,var(--danger));box-shadow:0 0 8px var(--danger);}
+.pbar-fill.yellow{background:linear-gradient(90deg,#806000,var(--yellow));box-shadow:0 0 8px var(--yellow);}
+.pbar-nums{display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);margin-top:3px;}
+
+/* ══════════════════════════════════════════
+   ⑥ TEMPERATURE TILE
+══════════════════════════════════════════ */
+.thermo-wrap{display:flex;align-items:center;gap:14px;margin:6px 0;}
+.thermo{
+  width:20px;height:80px;
+  border:2px solid var(--border2);border-radius:10px 10px 50% 50%;
+  position:relative;overflow:hidden;background:var(--bg2);
+  flex-shrink:0;
+}
+.thermo-fill{
+  position:absolute;bottom:0;left:0;right:0;border-radius:0 0 50% 50%;
+  background:linear-gradient(0deg,var(--danger),var(--warn));
+  transition:height 1.2s ease;
+}
+.thermo-bulb{
+  position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+  width:16px;height:16px;border-radius:50%;background:var(--danger);
+  box-shadow:0 0 10px var(--danger);
+}
+
+/* ══════════════════════════════════════════
+   ⑦ FLOW / GAUGE TILE
+══════════════════════════════════════════ */
+.gauge-svg{overflow:visible;display:block;margin:0 auto;}
+.gauge-track{fill:none;stroke:var(--border2);stroke-width:10;stroke-linecap:round;}
+.gauge-fill{fill:none;stroke:var(--blue);stroke-width:10;stroke-linecap:round;stroke-dasharray:183;stroke-dashoffset:183;transition:stroke-dashoffset 1.4s ease;filter:drop-shadow(0 0 5px var(--blue));}
+.gauge-needle{transform-origin:50% 70%;transition:transform 1.4s cubic-bezier(.4,0,.2,1);}
+
+/* ══════════════════════════════════════════
+   ⑧ REFRESH RING
+══════════════════════════════════════════ */
+.rring-wrap{position:relative;width:60px;height:60px;margin:6px auto;}
+.rring-wrap svg{transform:rotate(-90deg);}
+.rring-track{fill:none;stroke:var(--border2);stroke-width:5;}
+.rring-fill{fill:none;stroke:var(--g1);stroke-width:5;stroke-dasharray:166;transition:stroke-dashoffset 1s linear;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--g1));}
+.rring-num{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',monospace;font-size:0.9rem;font-weight:700;color:var(--g1);
+}
+
+/* ══════════════════════════════════════════
+   ⑨ MINI STATUS PILLS
+══════════════════════════════════════════ */
+.pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:'Share Tech Mono',monospace;font-size:0.62rem;
+  padding:4px 10px;border-radius:20px;
+  border:1px solid currentColor;letter-spacing:1px;
+}
+.pill.g{color:var(--g1);background:rgba(0,255,136,0.06);}
+.pill.b{color:var(--blue);background:rgba(0,212,255,0.06);}
+.pill.w{color:var(--warn);background:rgba(255,145,0,0.06);}
+.pill.d{color:var(--danger);background:rgba(255,45,85,0.06);}
+.pill.y{color:var(--yellow);background:rgba(255,214,0,0.06);}
+
+/* ══════════════════════════════════════════
+   ⑩ TELEMETRY TABLE
+══════════════════════════════════════════ */
+.tele-table{width:100%;border-collapse:collapse;font-family:'Share Tech Mono',monospace;font-size:0.72rem;}
+.tele-table th{
+  color:var(--text2);text-align:left;
+  padding:7px 12px;border-bottom:1px solid var(--border);
+  font-size:0.58rem;letter-spacing:2px;text-transform:uppercase;
+}
+.tele-table td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text);}
+.tele-table tr:last-child td{border-bottom:none;}
+.tele-table tr:hover td{background:var(--g5);}
+.tval{color:var(--g1);font-weight:700;}
+.tts{font-size:0.58rem;color:var(--muted);}
+.tkey{color:var(--g4);}
+
+/* ══════════════════════════════════════════
+   DEVICE SELECT
+══════════════════════════════════════════ */
+.dev-sel{
+  background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);padding:7px 10px;border-radius:8px;
+  font-family:'Share Tech Mono',monospace;font-size:0.7rem;
+  width:100%;margin-bottom:10px;outline:none;cursor:pointer;
+}
+
+/* ══════════════════════════════════════════
+   BUTTONS
+══════════════════════════════════════════ */
+.btn-refresh{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--g1);padding:8px 18px;font-size:0.68rem;
+  letter-spacing:2px;border-radius:8px;cursor:pointer;
+  font-family:'Share Tech Mono',monospace;
+  transition:all .2s;
+}
+.btn-refresh:hover{background:var(--g5);border-color:var(--g1);}
+
+/* ══════════════════════════════════════════
+   LOG BOX
+══════════════════════════════════════════ */
+.logbox{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:8px;margin-top:10px;
+  font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+  max-height:80px;overflow-y:auto;color:var(--muted);
+}
+.le.ok{color:var(--g2);}
+.le.err{color:var(--danger);}
+.le.info{color:var(--blue);}
+
+/* ══════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════ */
+#login-sec{
+  display:flex;align-items:center;justify-content:center;
+  min-height:80vh;
+}
+.login-box{
+  background:linear-gradient(145deg,var(--panel2),var(--panel));
+  border:1px solid var(--border2);border-radius:20px;
+  padding:36px;width:100%;max-width:380px;
+  box-shadow:0 0 60px var(--glow),0 20px 60px var(--shadow);
+}
+.login-box h2{
+  font-family:'Orbitron',monospace;font-size:0.9rem;
+  color:var(--g1);letter-spacing:2px;margin-bottom:20px;
+  text-shadow:0 0 20px var(--g1);
+}
+.login-box input{
+  width:100%;background:var(--bg2);border:1px solid var(--border2);
+  color:var(--text);padding:12px 14px;border-radius:10px;
+  font-family:'Share Tech Mono',monospace;font-size:0.85rem;
+  margin-bottom:12px;outline:none;transition:border .2s;
+}
+.login-box input:focus{border-color:var(--g1);}
+.btn-connect{
+  width:100%;
+  background:linear-gradient(135deg,var(--g1),var(--g3));
+  color:#000;border:none;padding:14px;border-radius:10px;
+  font-family:'Orbitron',monospace;font-weight:700;font-size:0.85rem;
+  cursor:pointer;letter-spacing:2px;
+  box-shadow:0 0 30px var(--glow-strong);
+  transition:opacity .2s;
+}
+.btn-connect:disabled{opacity:.4;}
+.err-msg{color:var(--danger);font-size:0.72rem;font-family:'Share Tech Mono',monospace;text-align:center;margin-top:8px;}
+
+/* ══════════════════════════════════════════
+   LOADING
+══════════════════════════════════════════ */
+.loading{
+  text-align:center;padding:60px 20px;
+  font-family:'Share Tech Mono',monospace;font-size:0.8rem;color:var(--text2);
+  animation:blink 1s infinite;
+}
+
+/* ══════════════════════════════════════════
+   THRESHOLD ROWS
+══════════════════════════════════════════ */
+.thresh-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--border);
+  font-family:'Share Tech Mono',monospace;font-size:0.65rem;
+}
+.thresh-row:last-child{border-bottom:none;}
+.thresh-key{color:var(--text2);letter-spacing:1px;}
+.thresh-val{font-weight:700;}
+
+/* ══════════════════════════════════════════
+   NOTIFICATION PANEL
+══════════════════════════════════════════ */
+.notif-panel{
+  background:linear-gradient(145deg,var(--panel2),var(--panel));
+  border:1px solid var(--border2);border-radius:16px;padding:20px;
+  margin-bottom:10px;position:relative;overflow:hidden;
+  box-shadow:0 2px 16px var(--shadow);
+}
+.notif-panel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--g1),#a855f7,var(--blue),transparent);
+}
+.notif-row{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;
+}
+@media(max-width:600px){.notif-row{grid-template-columns:1fr;}}
+.notif-box{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;padding:14px;
+}
+.notif-box h3{
+  font-family:'Share Tech Mono',monospace;font-size:0.68rem;
+  letter-spacing:2px;color:var(--text2);text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.notif-input{
+  width:100%;background:var(--bg);border:1px solid var(--border2);
+  color:var(--text);padding:9px 12px;border-radius:8px;
+  font-family:'Share Tech Mono',monospace;font-size:0.78rem;
+  margin-bottom:8px;outline:none;transition:border .2s;
+}
+.notif-input:focus{border-color:var(--g1);}
+.notif-input::placeholder{color:var(--muted);}
+.notif-label{
+  font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+  color:var(--text2);letter-spacing:1px;margin-bottom:4px;display:block;
+}
+.btn-test{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--g1);padding:7px 14px;font-size:0.65rem;
+  border-radius:8px;cursor:pointer;font-family:'Share Tech Mono',monospace;
+  letter-spacing:1px;transition:all .2s;margin-right:6px;
+}
+.btn-test:hover{border-color:var(--g1);background:var(--g5);}
+.btn-save{
+  background:linear-gradient(135deg,var(--g1),var(--g3));
+  border:none;color:#000;padding:7px 14px;font-size:0.65rem;
+  border-radius:8px;cursor:pointer;font-family:'Share Tech Mono',monospace;
+  font-weight:700;letter-spacing:1px;transition:opacity .2s;
+}
+.btn-save:hover{opacity:.85;}
+.notif-status{
+  font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+  margin-top:8px;padding:4px 8px;border-radius:6px;display:inline-block;
+}
+.notif-status.ok{color:var(--g1);background:rgba(0,255,136,0.07);border:1px solid var(--g3);}
+.notif-status.err{color:var(--danger);background:rgba(255,45,85,0.07);border:1px solid var(--danger);}
+.notif-status.send{color:var(--blue);background:rgba(0,212,255,0.07);border:1px solid var(--blue);}
+.thresh-selector{
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;margin-top:10px;
+}
+.thresh-selector input[type=range]{flex:1;accent-color:var(--g1);}
+.thresh-num{
+  font-family:'Orbitron',monospace;font-size:1rem;
+  font-weight:700;color:var(--g1);min-width:42px;text-align:right;
+}
+.cooldown-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+  color:var(--text2);background:var(--bg);
+  border:1px solid var(--border);border-radius:20px;padding:4px 10px;
+  margin-top:8px;
+}
+.notif-toggle{
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text2);
+}
+.ntoggle-track{
+  width:28px;height:14px;background:var(--border2);border-radius:7px;
+  position:relative;transition:.3s;flex-shrink:0;
+}
+.ntoggle-track.on{background:var(--g2);}
+.ntoggle-thumb{
+  position:absolute;top:2px;left:2px;width:10px;height:10px;
+  border-radius:50%;background:#fff;transition:.3s;
+}
+.ntoggle-track.on .ntoggle-thumb{transform:translateX(14px);}
+.notif-history{
+  margin-top:10px;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:8px;max-height:80px;overflow-y:auto;
+  font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);
+}
+.nh-entry{margin-bottom:3px;}
+.nh-entry.sent{color:var(--g2);}
+.nh-entry.fail{color:var(--danger);}
+
+
+/* ══════════════════════════════════════════
+   MOTOR CONTROL / SCHEDULE (added)
+══════════════════════════════════════════ */
+.sw{position:relative;width:58px;height:30px;display:inline-block;flex:0 0 auto;}
+.sw input{opacity:0;width:0;height:0;position:absolute;}
+.sw span{position:absolute;inset:0;background:var(--border2);border-radius:30px;transition:.2s;cursor:pointer;}
+.sw span:before{content:'';position:absolute;height:22px;width:22px;left:4px;top:4px;background:#fff;border-radius:50%;transition:.2s;}
+.sw input:checked+span{background:var(--warn);}
+.sw input:checked+span:before{transform:translateX(28px);}
+.sw input:disabled+span{opacity:.45;cursor:not-allowed;}
+.ctl-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--text2);}
+.ctl-row:last-child{border-bottom:none;}
+.ctl-big{font-family:'Orbitron',monospace;font-size:1.05rem;font-weight:700;}
+.btn-warn{background:transparent;border:1px solid var(--warn);color:var(--warn);padding:8px 16px;font-size:0.68rem;letter-spacing:2px;border-radius:8px;cursor:pointer;font-family:'Share Tech Mono',monospace;}
+.btn-warn:disabled{opacity:.4;}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);padding:6px 10px;font-size:0.6rem;border-radius:8px;cursor:pointer;font-family:'Share Tech Mono',monospace;}
+.chip{display:inline-block;padding:3px 7px;margin:2px;border:1px solid var(--border2);border-radius:12px;font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);}
+.chip.on{color:var(--g1);border-color:var(--g1);}
+.days-pick label{display:inline-flex;align-items:center;gap:3px;margin:3px 6px 3px 0;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text2);}
+.sched-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);}
+.sched-item:last-child{border-bottom:none;}
+.sched-time{font-family:'Orbitron',monospace;font-size:0.95rem;font-weight:700;}
+.sched-time.on{color:var(--warn);} .sched-time.off{color:var(--g1);}
+.mini{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text2);}
+.fld{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.7rem;margin:4px 0 8px;outline:none;}
+details.cfg summary{cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--text2);letter-spacing:1px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ══ HEADER ══ -->
+  <header class="hdr">
+    <div class="hdr-left">
+      <div class="app-icon">💧</div>
+      <div>
+        <div class="app-title">AQUA MONITOR</div>
+        <div class="app-sub">e-live.in · ThingsBoard IoT Platform</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="clock-box" id="clock">--:--:--</div>
+      <div class="theme-btn" onclick="toggleTheme()">
+        <span id="theme-lbl">🌙 NIGHT</span>
+        <div class="toggle-pill"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="live-pill">
+        <div class="live-dot" id="ldot"></div>
+        <span id="lstatus">OFFLINE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ LOGIN ══ -->
+  <div id="login-sec">
+    <div class="login-box">
+      <h2>⚡ CONNECT</h2>
+      <input type="email" id="uname" placeholder="Email" autocomplete="username">
+      <input type="password" id="upass" placeholder="Password" autocomplete="current-password">
+      <button class="btn-connect" id="lbtn" onclick="doLogin()">CONNECT</button>
+      <div class="err-msg" id="lerr"></div>
+      <div id="login-hint" style="text-align:center;margin-top:14px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--text2);">Sign in once — the app remembers your login on this phone.</div>
+    </div>
+  </div>
+
+  <!-- ══ DASHBOARD ══ -->
+  <div id="dash" style="display:none">
+    <div id="loadmsg" class="loading">⟳ INITIALISING SENSORS...</div>
+    <div id="mgrid" style="display:none">
+
+      <!-- Service Status Banner -->
+      <div id="svc-banner" style="display:none;padding:8px 14px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;align-items:center;gap:8px;margin-bottom:8px;background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.2);color:var(--g1);">
+        <span>✅ Background service active — alerts fire even when app is closed</span>
+      </div>
+      <div id="svc-warn-banner" style="display:none;padding:8px 14px;border-radius:10px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;margin-bottom:8px;background:rgba(255,145,0,0.06);border:1px solid rgba(255,145,0,0.3);color:#ff9100;">
+        ⚠️ Save your Telegram token + Chat ID and tap SAVE — then background alerts will work even when app is closed
+      </div>
+
+      <!-- ALERT -->
+      <div id="alert-bar"><span id="alert-ico"></span><span id="alert-txt"></span></div>
+
+      <!-- ══ ROW 1: WATER + SUMP + MOTOR ══ -->
+      <div class="sec">⬡ Primary Systems</div>
+      <div class="g3">
+
+        <!-- MAIN TANK -->
+        <div class="card tank-card" id="tank-card">
+          <div class="clabel"><span class="clabel-icon">🏗️</span> Main Tank</div>
+          <!-- arc gauge -->
+          <div class="arc-wrap">
+            <svg class="arc-svg" width="120" height="70" viewBox="0 0 120 70">
+              <path class="arc-track" d="M15,65 A50,50 0 0,1 105,65" fill="none"/>
+              <path class="arc-fill" id="arc-fill" d="M15,65 A50,50 0 0,1 105,65" fill="none"/>
+              <text id="arc-txt" x="60" y="58" text-anchor="middle" font-family="Orbitron,monospace" font-size="14" font-weight="700" fill="var(--g1)">--%</text>
+            </svg>
+          </div>
+          <div class="tank-scene">
+            <div class="tank-unit">
+              <div class="tank-shell main-tank" id="main-shell">
+                <div class="t-water" id="main-water" style="height:0%">
+                  <div class="t-wave"></div>
+                </div>
+                <div class="t-markers">
+                  <div class="t-mark"><div class="t-mark-pct">75</div><div class="t-mark-line"></div></div>
+                  <div class="t-mark"><div class="t-mark-pct">50</div><div class="t-mark-line"></div></div>
+                  <div class="t-mark"><div class="t-mark-pct">25</div><div class="t-mark-line"></div></div>
+                </div>
+                <div class="t-label" id="tank-lbl">--%</div>
+              </div>
+              <div class="t-name">MAIN</div>
+            </div>
+          </div>
+          <div class="pbar-wrap">
+            <div class="pbar-track"><div class="pbar-fill" id="tank-bar" style="width:0%"></div></div>
+            <div class="pbar-nums"><span>EMPTY</span><span>HALF</span><span>FULL</span></div>
+          </div>
+          <div class="csub" id="tank-sub" style="margin-top:8px;">Key: —</div>
+        </div>
+
+        <!-- SUMP TANK -->
+        <div class="card c-blue tank-card" id="sump-card">
+          <div class="clabel"><span class="clabel-icon">🔵</span> Sump Tank</div>
+          <div class="arc-wrap">
+            <svg class="arc-svg" width="120" height="70" viewBox="0 0 120 70">
+              <path class="arc-track" d="M15,65 A50,50 0 0,1 105,65" fill="none" stroke="var(--border2)"/>
+              <path id="sarc-fill" d="M15,65 A50,50 0 0,1 105,65" fill="none" stroke="var(--blue)" stroke-width="8" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" style="transition:stroke-dashoffset 1.4s ease;filter:drop-shadow(0 0 5px var(--blue));"/>
+              <text id="sarc-txt" x="60" y="58" text-anchor="middle" font-family="Orbitron,monospace" font-size="14" font-weight="700" fill="var(--blue)">--%</text>
+            </svg>
+          </div>
+          <div class="tank-scene">
+            <div class="tank-unit">
+              <div class="tank-shell sump-tank" id="sump-shell">
+                <div class="t-water" id="sump-water" style="height:0%">
+                  <div class="t-wave" style="background:rgba(0,212,255,0.4);"></div>
+                </div>
+                <div class="t-label" id="sump-lbl" style="font-size:0.75rem;color:#fff;">--%</div>
+              </div>
+              <div class="t-name">SUMP</div>
+            </div>
+          </div>
+          <div class="pbar-wrap">
+            <div class="pbar-track"><div class="pbar-fill blue" id="sump-bar" style="width:0%"></div></div>
+            <div class="pbar-nums"><span>EMPTY</span><span>HALF</span><span>FULL</span></div>
+          </div>
+          <div class="csub" id="sump-sub" style="margin-top:8px;">Sump level monitoring</div>
+        </div>
+
+        <!-- MOTOR STATUS -->
+        <div class="card" id="motor-card">
+          <div class="clabel"><span class="clabel-icon">⚙️</span> Motor / Pump</div>
+          <div class="motor-ring" id="motor-ring">⚙️</div>
+          <div class="motor-label off" id="motor-lbl">STOPPED</div>
+          <div class="motor-badge" id="motor-badge">
+            <div class="motor-badge-dot" style="background:var(--muted);"></div>
+            <span id="motor-key-lbl">—</span>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+            <div class="thresh-row" style="border:none;flex-direction:column;gap:4px;width:100%;padding:0;">
+              <div style="display:flex;justify-content:space-between;width:100%;">
+                <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);">RUNTIME</span>
+                <span style="font-family:'Orbitron',monospace;font-size:0.72rem;color:var(--g1);" id="motor-runtime">—</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;width:100%;margin-top:4px;">
+                <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);">LAST UPDATE</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);" id="motor-ts">—</span>
+              </div>
+            </div>
+          </div>
+          <div class="csub" id="motor-sub" style="margin-top:8px;">—</div>
+        </div>
+
+      </div>
+
+      <!-- ══ MOTOR CONTROL ══ -->
+      <div class="sec">⬡ Motor Control</div>
+      <div class="g2">
+
+        <!-- MANUAL / BYPASS + RESET -->
+        <div class="card" id="bypass-card">
+          <div class="clabel"><span class="clabel-icon">🛠️</span> Manual / Bypass</div>
+          <div class="ctl-row">
+            <span>MANUAL / BYPASS</span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              <span class="mini">OFF</span>
+              <label class="sw"><input type="checkbox" id="bypass-sw" onchange="onBypassToggle(this)"><span></span></label>
+              <span class="mini">ON</span>
+            </span>
+          </div>
+          <div class="ctl-row"><span>STATE (from device)</span><span class="ctl-big" id="bypass-state" style="color:var(--muted);">—</span></div>
+          <div class="ctl-row">
+            <span>RESET</span>
+            <button class="btn-warn" id="reset-btn" onclick="sendReset()">⟲ RESET</button>
+          </div>
+          <div class="csub" id="ctl-msg" style="margin-top:8px;">Ready</div>
+        </div>
+
+        <!-- PROTECTION STATUS -->
+        <div class="card" id="prot-card">
+          <div class="clabel"><span class="clabel-icon">🛡️</span> Protection &amp; Current</div>
+          <div class="ctl-row"><span>DRY RUN</span><span class="ctl-big" id="dry-state" style="color:var(--muted);">—</span></div>
+          <div class="ctl-row"><span>FLOW</span><span class="ctl-big" id="flow-state" style="color:var(--muted);">—</span></div>
+          <div class="ctl-row"><span>MOTOR CURRENT</span><span class="ctl-big" id="cur-val" style="color:var(--blue);">—</span></div>
+          <div class="ctl-row"><span>MOTOR</span><span class="ctl-big" id="mot-state" style="color:var(--muted);">—</span></div>
+          <div class="csub" id="prot-sub" style="margin-top:8px;">Keys: —</div>
+        </div>
+      </div>
+
+      <!-- SCHEDULE -->
+      <div class="g1" style="margin-top:10px;">
+        <div class="card" id="sched-card">
+          <div class="clabel"><span class="clabel-icon">⏰</span> Schedule Manual / Bypass ON &amp; OFF</div>
+          <div id="sched-warn" style="display:none;padding:8px 10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,145,0,0.3);background:rgba(255,145,0,0.06);color:#ff9100;font-family:'Share Tech Mono',monospace;font-size:0.62rem;">
+            ⚠️ Exact alarms are not allowed, so schedules may run a few minutes late.
+            <button class="btn-warn" style="margin-top:6px;padding:5px 10px;" onclick="NativeApp.openExactAlarmSettings()">ALLOW EXACT ALARMS</button>
+          </div>
+          <div id="sched-web-warn" style="display:none;padding:8px 10px;border-radius:10px;margin-bottom:8px;border:1px solid rgba(255,45,85,0.3);color:var(--danger);font-family:'Share Tech Mono',monospace;font-size:0.62rem;">
+            Schedules only run inside the Android app.
+          </div>
+          <div id="sched-list"></div>
+
+          <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px;">
+            <div class="mini" style="margin-bottom:4px;">ADD A SCHEDULE</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="time" id="sch-time" class="fld" value="06:00" style="width:auto;flex:1;min-width:110px;">
+              <select id="sch-action" class="fld" style="width:auto;flex:1;min-width:130px;">
+                <option value="on">Bypass ON</option>
+                <option value="off">Bypass OFF</option>
+              </select>
+            </div>
+            <div class="days-pick" id="sch-days">
+              <label><input type="checkbox" value="1" checked> Mon</label>
+              <label><input type="checkbox" value="2" checked> Tue</label>
+              <label><input type="checkbox" value="3" checked> Wed</label>
+              <label><input type="checkbox" value="4" checked> Thu</label>
+              <label><input type="checkbox" value="5" checked> Fri</label>
+              <label><input type="checkbox" value="6" checked> Sat</label>
+              <label><input type="checkbox" value="0" checked> Sun</label>
+            </div>
+            <button class="btn-refresh" onclick="addSched()">＋ ADD SCHEDULE</button>
+          </div>
+
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:8px;">
+            <div class="mini" style="margin-bottom:4px;">RECENT SCHEDULED RUNS</div>
+            <div id="sched-log" class="mini">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALARM LIST -->
+      <div class="g1" style="margin-top:10px;">
+        <div class="card">
+          <div class="clabel"><span class="clabel-icon">🚨</span> Alarm List</div>
+          <div id="alarm-list" class="mini">Loading…</div>
+        </div>
+      </div>
+
+      <!-- COMMAND SETTINGS -->
+      <div class="g1" style="margin-top:10px;">
+        <div class="card">
+          <details class="cfg">
+            <summary>⚙️ COMMAND SETTINGS (how the app talks to your device)</summary>
+            <div style="margin-top:10px;">
+              <div class="mini">Bypass command / attribute name</div>
+              <input class="fld" id="cfg-bypass" placeholder="setBypass">
+              <div class="mini">Reset command name</div>
+              <input class="fld" id="cfg-reset" placeholder="reset">
+              <div class="mini">Send as</div>
+              <select class="fld" id="cfg-mode">
+                <option value="rpc2">Two-way RPC (waits for device reply)</option>
+                <option value="rpc1">One-way RPC (fire and forget)</option>
+                <option value="attr">Shared attribute</option>
+              </select>
+              <div class="mini">Value format</div>
+              <select class="fld" id="cfg-style">
+                <option value="bool">true / false</option>
+                <option value="int">1 / 0</option>
+              </select>
+              <button class="btn-refresh" onclick="saveCtl()">SAVE</button>
+              <div class="mini" style="margin-top:8px;">Find the names in ThingsBoard: edit your dashboard → open the Manual/Bypass widget → Edit → settings (RPC method / attribute).</div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- ══ ROW 2: POWER + CONNECTION + FLOW + TEMP + PRESSURE ══ -->
+      <div class="sec">⬡ Sensors & Environment</div>
+      <div class="g5">
+
+        <!-- POWER / VOLTAGE -->
+        <div class="card c-yellow">
+          <div class="clabel"><span class="clabel-icon">⚡</span> Power Supply</div>
+          <div class="bolt-icon" id="bolt-icon">⚡</div>
+          <div class="cval sm" id="volt-val" style="color:var(--yellow);text-align:center;text-shadow:0 0 15px var(--yellow);">—<span class="cunit">V</span></div>
+          <div class="pbar-wrap">
+            <div class="pbar-track"><div class="pbar-fill yellow" id="volt-bar" style="width:0%"></div></div>
+            <div class="pbar-nums"><span>0</span><span>12V</span><span>24V</span></div>
+          </div>
+          <div class="csub" id="volt-sub" style="margin-top:8px;">No voltage key</div>
+        </div>
+
+        <!-- CONNECTION -->
+        <div class="card c-blue">
+          <div class="clabel"><span class="clabel-icon">📶</span> Connection</div>
+          <div class="signal-row" id="sig-row">
+            <div class="sig-bar off" style="height:6px;width:6px;"></div>
+            <div class="sig-bar off" style="height:9px;width:6px;"></div>
+            <div class="sig-bar off" style="height:13px;width:6px;"></div>
+            <div class="sig-bar off" style="height:17px;width:6px;"></div>
+            <div class="sig-bar off" style="height:22px;width:6px;"></div>
+          </div>
+          <div class="cval xs" id="conn-lbl" style="color:var(--blue);">—</div>
+          <div class="lat-badge" id="lat-badge"><span style="color:var(--text2);">LATENCY</span><span style="color:var(--blue);" id="lat-ms">—</span></div>
+          <div class="csub" id="conn-sub" style="margin-top:8px;">e-live.in</div>
+        </div>
+
+        <!-- FLOW RATE -->
+        <div class="card c-blue">
+          <div class="clabel"><span class="clabel-icon">🌊</span> Flow Rate</div>
+          <!-- small gauge -->
+          <svg class="gauge-svg" width="80" height="50" viewBox="0 0 80 50" style="display:block;margin:4px auto;">
+            <path class="gauge-track" d="M8,44 A34,34 0 0,1 72,44" stroke-width="8"/>
+            <path id="flow-arc" d="M8,44 A34,34 0 0,1 72,44" fill="none" stroke="var(--blue)" stroke-width="8" stroke-linecap="round" stroke-dasharray="107" stroke-dashoffset="107" style="transition:stroke-dashoffset 1.2s ease;filter:drop-shadow(0 0 4px var(--blue));"/>
+            <text id="flow-gtxt" x="40" y="42" text-anchor="middle" font-family="Orbitron,monospace" font-size="11" font-weight="700" fill="var(--blue)">—</text>
+          </svg>
+          <div class="cval xs" id="flow-val" style="color:var(--blue);text-align:center;">—<span class="cunit">L/min</span></div>
+          <div class="csub" id="flow-sub" style="margin-top:6px;">No flow key detected</div>
+        </div>
+
+        <!-- TEMPERATURE -->
+        <div class="card c-warn">
+          <div class="clabel"><span class="clabel-icon">🌡️</span> Temperature</div>
+          <div class="thermo-wrap">
+            <div class="thermo">
+              <div class="thermo-fill" id="thermo-fill" style="height:30%;"></div>
+              <div class="thermo-bulb"></div>
+            </div>
+            <div>
+              <div class="cval sm" id="temp-val" style="color:var(--warn);">—<span class="cunit">°C</span></div>
+              <div class="pill w" style="margin-top:6px;" id="temp-state">NOMINAL</div>
+            </div>
+          </div>
+          <div class="csub" id="temp-sub" style="margin-top:6px;">No temp key detected</div>
+        </div>
+
+        <!-- PRESSURE -->
+        <div class="card c-purple">
+          <div class="clabel"><span class="clabel-icon">🔵</span> Pressure</div>
+          <div style="font-size:2rem;text-align:center;margin:4px 0;filter:drop-shadow(0 0 8px #a855f7);">🔵</div>
+          <div class="cval xs" id="pres-val" style="color:#a855f7;text-align:center;">—<span class="cunit">bar</span></div>
+          <div class="pbar-wrap">
+            <div class="pbar-track"><div class="pbar-fill" id="pres-bar" style="width:0%;background:linear-gradient(90deg,#6b21a8,#a855f7);box-shadow:0 0 8px #a855f7;"></div></div>
+            <div class="pbar-nums"><span>0</span><span>5 bar</span><span>10</span></div>
+          </div>
+          <div class="csub" id="pres-sub" style="margin-top:6px;">No pressure key</div>
+        </div>
+
+      </div>
+
+      <!-- ══ ROW 3: WATER QUALITY + ALERTS + REFRESH + UPTIME ══ -->
+      <div class="sec">⬡ Quality & System</div>
+      <div class="g4">
+
+        <!-- WATER QUALITY / TDS -->
+        <div class="card">
+          <div class="clabel"><span class="clabel-icon">💎</span> Water Quality</div>
+          <div style="font-size:2rem;text-align:center;margin:4px 0;">💧</div>
+          <div class="cval xs" id="tds-val" style="text-align:center;">—<span class="cunit">ppm</span></div>
+          <div id="tds-pill" style="text-align:center;margin-top:8px;"><span class="pill g">CLEAN</span></div>
+          <div class="pbar-wrap">
+            <div class="pbar-track"><div class="pbar-fill" id="tds-bar" style="width:0%"></div></div>
+            <div class="pbar-nums"><span>0</span><span>500</span><span>1000</span></div>
+          </div>
+          <div class="csub" id="tds-sub" style="margin-top:6px;">No TDS key detected</div>
+        </div>
+
+        <!-- ALERTS & THRESHOLDS -->
+        <div class="card c-warn">
+          <div class="clabel"><span class="clabel-icon">🔔</span> Alerts & Thresholds</div>
+
+          <!-- SumpLevel Threshold -->
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text2);letter-spacing:1px;">💧 SUMP LEVEL — ALERT BELOW</span>
+              <span style="font-family:'Orbitron',monospace;font-size:0.9rem;color:var(--warn);font-weight:700;" id="sump-thresh-disp">30%</span>
+            </div>
+            <input type="range" id="sump-thresh-slider" min="0" max="100" value="30" step="1"
+              style="width:100%;accent-color:var(--warn);cursor:pointer;height:6px;"
+              oninput="document.getElementById('sump-thresh-disp').textContent=this.value+'%'"
+              onchange="saveThresholdForKey('SumpLevel',parseInt(this.value))">
+            <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--muted);margin-top:3px;">
+              <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+            </div>
+          </div>
+
+          <!-- TankLevel Threshold -->
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text2);letter-spacing:1px;">🏗️ TANK LEVEL — ALERT BELOW</span>
+              <span style="font-family:'Orbitron',monospace;font-size:0.9rem;color:var(--blue);font-weight:700;" id="tank-thresh-disp">30%</span>
+            </div>
+            <input type="range" id="tank-thresh-slider" min="0" max="100" value="30" step="1"
+              style="width:100%;accent-color:var(--blue);cursor:pointer;height:6px;"
+              oninput="document.getElementById('tank-thresh-disp').textContent=this.value+'%'"
+              onchange="saveThresholdForKey('TankLevel',parseInt(this.value))">
+            <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--muted);margin-top:3px;">
+              <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+            </div>
+          </div>
+
+          <!-- Cooldown 1 min to 24 hrs -->
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text2);letter-spacing:1px;">🕐 REPEAT ALERT AFTER</span>
+              <span style="font-family:'Orbitron',monospace;font-size:0.9rem;color:var(--g1);font-weight:700;" id="cooldown-disp">60 min</span>
+            </div>
+            <input type="range" id="cooldown-slider" min="1" max="1440" value="60" step="1"
+              style="width:100%;accent-color:var(--g1);cursor:pointer;height:6px;"
+              oninput="updateCooldownDisp(this.value)"
+              onchange="saveCooldown(parseInt(this.value))">
+            <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--muted);margin-top:3px;">
+              <span>1 min</span><span>1 hr</span><span>6 hr</span><span>12 hr</span><span>24 hr</span>
+            </div>
+          </div>
+
+          <!-- Status rows -->
+          <div style="border-top:1px solid var(--border);padding-top:8px;">
+            <div class="thresh-row">
+              <span class="thresh-key">🔔 ALARM STATUS</span>
+              <span class="thresh-val" id="alarm-val" style="color:var(--g1);">NORMAL</span>
+            </div>
+            <div class="thresh-row" style="border:none;">
+              <span class="thresh-key">⚙️ MOTOR RUNTIME</span>
+              <span class="thresh-val" id="runtime-val">—</span>
+            </div>
+          </div></div>
+
+        <!-- AUTO REFRESH -->
+        <div class="sec">⬡ Raw Telemetry</div>
+      <div class="g1">
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <div class="clabel" style="margin:0;"><span class="clabel-icon">📡</span> All Sensor Keys</div>
+            <select class="dev-sel" id="devsel" onchange="onDevChange()" style="width:auto;max-width:220px;margin:0;"></select>
+          </div>
+          <table class="tele-table">
+            <thead><tr><th>Parameter</th><th>Value</th><th>Timestamp</th><th>Age</th></tr></thead>
+            <tbody id="tele-body"></tbody>
+          </table>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;">
+            <button class="btn-refresh" onclick="fetchTele()">↺ REFRESH NOW</button>
+            <div class="lat-badge"><span style="color:var(--text2);">TOTAL KEYS</span><span id="tele-cnt" style="color:var(--g1);">0</span></div>
+          </div>
+          <div class="logbox" id="logbox"></div>
+        </div>
+      </div>
+
+
+      <!-- ══ ALERTS & NOTIFICATIONS ══ -->
+      <div class="sec">⬡ Alerts &amp; Notifications</div>
+      <div class="g1">
+        <div class="card">
+          <div class="clabel"><span class="clabel-icon">✈️</span> Telegram Alerts</div>
+
+          <!-- Telegram inputs -->
+          <label style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);letter-spacing:1px;display:block;margin-bottom:4px;">BOT TOKEN</label>
+          <input type="text" id="tg-token" placeholder="1234567890:ABCdef..."
+            style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:11px 12px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;margin-bottom:10px;outline:none;">
+
+          <label style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);letter-spacing:1px;display:block;margin-bottom:4px;">YOUR CHAT ID</label>
+          <input type="text" id="tg-chatid" placeholder="123456789"
+            style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:11px 12px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;margin-bottom:12px;outline:none;">
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="saveTG()"
+              style="flex:1;background:linear-gradient(135deg,var(--g1),var(--g3));color:#000;border:none;padding:11px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;cursor:pointer;font-weight:700;letter-spacing:1px;min-width:100px;">
+              💾 SAVE
+            </button>
+            <button onclick="testTelegram()"
+              style="flex:1;background:transparent;border:1px solid var(--border2);color:var(--g1);padding:11px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.75rem;cursor:pointer;letter-spacing:1px;min-width:100px;">
+              📤 SEND TEST
+            </button>
+          </div>
+          <div id="tg-status" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;"></div>
+
+          <!-- Setup guide -->
+          <div style="margin-top:12px;background:rgba(41,182,246,0.05);border:1px solid rgba(41,182,246,0.2);border-radius:10px;padding:12px;">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:#29b6f6;margin-bottom:8px;letter-spacing:1px;">SETUP — 2 MINUTES, FREE:</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text2);line-height:2.2;">
+              <b style="color:#29b6f6;">Step 1</b> — Open Telegram, search <b style="color:#fff;">@BotFather</b><br>
+              <b style="color:#29b6f6;">Step 2</b> — Send <span style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;">/newbot</span> → enter any name → get Token<br>
+              <b style="color:#29b6f6;">Step 3</b> — Open your new bot → tap <b style="color:#fff;">START</b><br>
+              <b style="color:#29b6f6;">Step 4</b> — Search <b style="color:#fff;">@userinfobot</b> → send it any message → it replies with your <b style="color:#fff;">Chat ID</b><br>
+              <b style="color:#29b6f6;">Step 5</b> — Paste Token + Chat ID above → SAVE → TEST
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <a href="https://t.me/BotFather" target="_blank"
+                style="flex:1;text-align:center;background:linear-gradient(135deg,#29b6f6,#0288d1);color:#fff;padding:9px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;text-decoration:none;letter-spacing:1px;">
+                🤖 @BotFather
+              </a>
+              <a href="https://t.me/userinfobot" target="_blank"
+                style="flex:1;text-align:center;background:linear-gradient(135deg,#00bcd4,#006064);color:#fff;padding:9px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;text-decoration:none;letter-spacing:1px;">
+                🪪 Get Chat ID
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notification history -->
+        <div class="card" id="notif-history-card" style="display:none;">
+          <div class="clabel"><span class="clabel-icon">📋</span> Alert History</div>
+          <div id="notif-history-list" style="font-family:'Share Tech Mono',monospace;font-size:0.62rem;"></div>
+        </div>
+      </div>
+
+    </div><!-- /mgrid -->
+  </div><!-- /dash -->
+
+</div><!-- /wrap -->
+
+<script>
+// ══════════════════════════════════════════════
+//  CONSTANTS & STATE
+// ══════════════════════════════════════════════
+const BASE='https://e-live.in';
+let token=null, devId=null, allDevs=[], refreshCt=0;
+let motorStartTs=null, refreshSecs=30, refreshIv=null, countIv=null, latencyT=0;
+const CIRC_MAIN=251, CIRC_REFRESH=166;
+
+// ══════════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════════
+function toggleTheme(){
+  const d=document.documentElement;
+  const night=d.dataset.theme==='night';
+  d.dataset.theme=night?'day':'night';
+  document.getElementById('theme-lbl').textContent=night?'☀️ DAY':'🌙 NIGHT';
+}
+// theme toggling only
+
+// ══════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════
+setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-IN',{hour12:false}),1000);
+document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-IN',{hour12:false});
+
+// ══════════════════════════════════════════════
+//  LOGGING
+// ══════════════════════════════════════════════
+function log(msg,t='info'){
+  const b=document.getElementById('logbox');
+  const d=document.createElement('div');
+  d.className='le '+t;
+  d.textContent=new Date().toLocaleTimeString()+' · '+msg;
+  b.prepend(d);
+  while(b.children.length>40)b.lastChild.remove();
+}
+
+// ══════════════════════════════════════════════
+//  STATUS
+// ══════════════════════════════════════════════
+function setStat(s){
+  const map={live:'LIVE',error:'ERROR',connecting:'...',offline:'OFFLINE'};
+  document.getElementById('ldot').className='live-dot '+(s==='live'?'on':s==='error'?'err':'');
+  document.getElementById('lstatus').textContent=map[s]||'OFFLINE';
+}
+
+// ══════════════════════════════════════════════
+//  ALERT BANNER
+// ══════════════════════════════════════════════
+function showAlert(msg,t='g'){
+  const b=document.getElementById('alert-bar');
+  b.className=t+' show';
+  const aico=document.getElementById('alert-ico'); if(aico) aico.textContent=t==='d'?'🚨':t==='w'?'⚠️':'✅';
+  const atxt=document.getElementById('alert-txt'); if(atxt) atxt.textContent=msg;
+  const lalt=document.getElementById('last-alert'); if(lalt) lalt.textContent=new Date().toLocaleTimeString();
+}
+function hideAlert(){document.getElementById('alert-bar').className='';}
+
+// ══════════════════════════════════════════════
+//  API
+// ══════════════════════════════════════════════
+// Use XHR for all API calls — works from file:// on Android
+function api(path, method='GET', body=null) {
+  return new Promise((resolve, reject) => {
+    const t0 = performance.now();
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, BASE+path, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if(token) xhr.setRequestHeader('X-Authorization', 'Bearer '+token);
+    xhr.timeout = 15000;
+    xhr.onload = function() {
+      const lat = Math.round(performance.now()-t0);
+      updConn(lat);
+      try {
+        if(xhr.status >= 200 && xhr.status < 300) {
+          let out={}; if(xhr.responseText){ try{ out=JSON.parse(xhr.responseText); }catch(pe){ out={raw:xhr.responseText}; } }
+          resolve(out);
+        } else {
+          reject(new Error(xhr.status+': '+xhr.responseText.slice(0,100)));
+        }
+      } catch(e) { reject(new Error('Parse error: '+xhr.responseText.slice(0,50))); }
+    };
+    xhr.onerror   = () => reject(new Error('Network error'));
+    xhr.ontimeout = () => reject(new Error('Timeout'));
+    xhr.send(body ? JSON.stringify(body) : null);
+  });
+}
+
+function updConn(lat){
+  const lmEl=document.getElementById('lat-ms'); if(lmEl) lmEl.textContent=lat+'ms';
+  const bars=document.querySelectorAll('#sig-row .sig-bar');
+  let n=5;
+  if(lat>600)n=1;else if(lat>400)n=2;else if(lat>200)n=3;else if(lat>100)n=4;
+  bars.forEach((b,i)=>{b.className='sig-bar '+(i<n?'on':'off');});
+  const labels=['POOR','FAIR','GOOD','GREAT','EXCELLENT'];
+  const lbl=document.getElementById('conn-lbl');
+  if(lbl) lbl.textContent=labels[n-1]||'GREAT';
+  lbl.style.color=n<=2?'var(--danger)':n<=3?'var(--warn)':'var(--blue)';
+  const csEl=document.getElementById('conn-sub'); if(csEl) csEl.textContent='e-live.in · '+lat+'ms';
+}
+
+// ══════════════════════════════════════════════
+//  COUNTDOWN RING
+// ══════════════════════════════════════════════
+function startCountdown(){
+  clearInterval(countIv);
+  refreshSecs=30;
+  countIv=setInterval(()=>{
+    refreshSecs--;
+    const off=CIRC_REFRESH*(1-refreshSecs/30);
+    const rr=document.getElementById('rring'); if(rr) rr.style.strokeDashoffset=off.toFixed(1);
+    setText('rnum',refreshSecs);
+    if(refreshSecs<=0)refreshSecs=30;
+  },1000);
+}
+
+// ══════════════════════════════════════════════
+//  LOGIN
+// ══════════════════════════════════════════════
+async function doLogin(){
+  const btn=document.getElementById('lbtn');
+  const err=document.getElementById('lerr');
+  btn.disabled=true; btn.textContent='CONNECTING...'; err.textContent='';
+  setStat('connecting');
+  try{
+    const uname = document.getElementById('uname').value.trim();
+    const upass = document.getElementById('upass').value.trim();
+
+    // XHR login — same method that worked in test
+    const result = await new Promise((resolve,reject)=>{
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', BASE+'/api/auth/login', true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.timeout = 20000;
+      xhr.onload = function(){
+        try{
+          const j = JSON.parse(xhr.responseText);
+          if(j.token) resolve(j);
+          else reject(new Error(j.message || 'HTTP '+xhr.status+' code:'+j.errorCode));
+        }catch(e){ reject(new Error('Bad response: '+xhr.responseText.substring(0,100))); }
+      };
+      xhr.onerror   = ()=>reject(new Error('Network error — check WiFi'));
+      xhr.ontimeout = ()=>reject(new Error('Timeout — check internet'));
+      xhr.send(JSON.stringify({username:uname, password:upass}));
+    });
+
+    token = result.token;
+
+    // Save to Android service
+    if(window.NativeApp){
+      try{ window.NativeApp.saveServer(BASE, uname, upass); }catch(e){}
+    }
+    try{ const s=lsGet(); s.tbEmail=uname; s.tbHost=BASE; lsSet(s); }catch(e){}
+
+    document.getElementById('login-sec').style.display='none';
+    document.getElementById('dash').style.display='block';
+    setStat('live');
+    startAutoRefresh();
+    startCountdown();
+    setTimeout(checkServiceStatus, 2000);
+    await discoverDevs();
+
+  }catch(e){
+    err.textContent = '✗ '+e.message;
+    setStat('error');
+    log('Login error: '+e.message,'err');
+  }
+  btn.disabled=false; btn.textContent='CONNECT';
+}
+async function discoverDevs(){
+  setLoad('⟳ Scanning for devices...');
+  let devs=[];
+  try{
+    const u=await api('/api/auth/user');
+    log(`Auth: ${u.email} (${u.authority})`,'ok');
+    const cid=u.customerId?.id;
+    const eps=[
+      cid&&cid!=='13814000-1dd2-11b2-8080-808080808080'?`/api/customer/${cid}/devices?pageSize=100&page=0`:null,
+      '/api/tenant/devices?pageSize=100&page=0',
+      '/api/customer/devices?pageSize=100&page=0',
+    ].filter(Boolean);
+    for(const ep of eps){
+      try{
+        log('Trying '+ep,'info');
+        const r=await api(ep);const list=r.data||[];
+        if(list.length){devs=list;log('✓ Found '+list.length+' device(s)','ok');break;}
+        else log('Empty: '+ep,'info');
+      }catch(e){log(ep+' → '+e.message,'err');}
+    }
+    if(!devs.length){
+      try{
+        log('Trying entity query...','info');
+        const r=await api('/api/entitiesQuery/find?maxDataPoints=1000','POST',{entityFilter:{type:'entityType',entityType:'DEVICE'},pageLink:{page:0,pageSize:100,sortOrder:{property:'createdTime',direction:'DESC'}}});
+        devs=(r.data||[]).map(d=>({id:{id:d.entityId?.id},name:d.latest?.ENTITY_FIELD?.name?.value||d.entityId?.id}));
+        if(devs.length)log('Entity query: '+devs.length,'ok');
+      }catch(e){log('Entity query: '+e.message,'err');}
+    }
+    if(!devs.length){
+      // Show dashboard anyway with a warning and the log visible
+      document.getElementById('loadmsg').innerHTML=
+        '⚠️ No devices found — showing dashboard with debug log<br>'+
+        '<button class="btn-refresh" style="margin-top:12px;" onclick="discoverDevs()">↺ RETRY</button>';
+      document.getElementById('loadmsg').style.animation='none';
+      document.getElementById('loadmsg').style.color='var(--warn)';
+      document.getElementById('mgrid').style.display='block';
+      setStat('error');
+      showAlert('No devices found on this account. Check the log below.','w');
+      return;
+    }
+    allDevs=devs;
+    document.getElementById('devsel').innerHTML=devs.map(d=>`<option value="${d.id.id}">${d.name}</option>`).join('');
+    const dcEl=document.getElementById('dev-count'); if(dcEl) dcEl.textContent=devs.length;
+    devId=devs[0].id.id;
+    await fetchTele();
+  }catch(e){
+    log('Fatal: '+e.message,'err');
+    document.getElementById('loadmsg').innerHTML=
+      '✗ '+e.message+'<br>'+
+      '<button class="btn-refresh" style="margin-top:12px;" onclick="discoverDevs()">↺ RETRY</button>';
+    document.getElementById('loadmsg').style.animation='none';
+    document.getElementById('loadmsg').style.color='var(--danger)';
+    document.getElementById('mgrid').style.display='block';
+    setStat('error');
+  }
+}
+
+function onDevChange(){devId=document.getElementById('devsel').value;fetchTele();}
+
+function setLoad(m){
+  setEl('loadmsg','style.display','block');
+  setText('loadmsg',m);
+  document.getElementById('mgrid').style.display='none';
+}
+
+// ══════════════════════════════════════════════
+//  AUTO REFRESH
+// ══════════════════════════════════════════════
+function startAutoRefresh(){
+  clearInterval(refreshIv);
+  refreshIv=setInterval(()=>{if(devId){fetchTele();startCountdown();}},30000);
+}
+
+// ══════════════════════════════════════════════
+//  FETCH TELEMETRY
+// ══════════════════════════════════════════════
+async function fetchTele(){
+  if(!devId)return;
+  try{
+    // ── Fetch selected device (for dashboard display) ──
+    const data=await api(`/api/plugins/telemetry/DEVICE/${devId}/values/timeseries`);
+    const keys=Object.keys(data);
+    log('Keys: '+(keys.length?keys.join(', '):'(none)'),'ok');
+    refreshCt++;
+    const lrEl=document.getElementById('last-ref'); if(lrEl) lrEl.textContent='Last: '+new Date().toLocaleTimeString();
+    const rcEl=document.getElementById('refresh-count'); if(rcEl) rcEl.textContent=refreshCt+' refresh'+(refreshCt!==1?'es':'');
+    const kcEl=document.getElementById('key-count'); if(kcEl) kcEl.textContent=keys.length;
+    render(data);
+    loadAlarms();
+    document.getElementById('loadmsg').style.display='none';
+    document.getElementById('mgrid').style.display='block';
+    setStat('live');
+
+    // ── Check ALL devices × ALL level keys for alerts ──
+    if(notifEnabled && allDevs.length > 0){
+      for(const dev of allDevs){
+        try{
+          const devData = await api(`/api/plugins/telemetry/DEVICE/${dev.id.id}/values/timeseries`);
+          const devKeys = Object.keys(devData);
+
+          // Find ALL level-type keys for this device (tank + sump + any other sensors)
+          const allLevelKeys = devKeys.filter(k =>
+            /level|water|sump|tank|wl|lev|height|litre|liter/i.test(k)
+          );
+
+          if(allLevelKeys.length === 0){
+            log(dev.name+': no level keys found','warn');
+          }
+
+          for(const levelKey of allLevelKeys){
+            const rawVal = devData[levelKey][0]?.value;
+            const pct = Math.min(100, Math.max(0, parseFloat(rawVal)||0));
+            if(isNaN(pct)) continue;
+            // Label: "Device 01 — SumpLevel" or "Device 27 — TankLevel"
+            const alertLabel = dev.name + ' — ' + levelKey;
+            log(alertLabel+': '+pct+'%', 'info');
+            await checkAndAlert(pct, alertLabel, levelKey);
+          }
+        }catch(e){
+          log('Alert check for '+dev.name+': '+e.message,'err');
+        }
+      }
+    }
+  }catch(e){
+    log('Tele error: '+e.message,'err');
+    document.getElementById('loadmsg').style.display='none';
+    document.getElementById('mgrid').style.display='block';
+    setStat('error');
+    // Only show alert for real errors, not null element errors
+    if(!e.message.includes('null') && !e.message.includes('textContent')){
+      showAlert('Telemetry fetch failed: '+e.message,'w');
+    }
+    log('Fetch error: '+e.message,'err');
+  }
+}
+
+// ══════════════════════════════════════════════
+//  KEY FINDER
+// ══════════════════════════════════════════════
+function fk(keys,...pats){for(const p of pats){const k=keys.find(k=>p.test(k));if(k)return k;}return null;}
+
+// ══════════════════════════════════════════════
+//  ARC UPDATE
+// ══════════════════════════════════════════════
+function setArc(el,pct,maxArc=251){
+  const off=maxArc*(1-pct/100);
+  el.style.strokeDashoffset=off.toFixed(1);
+}
+
+// ══════════════════════════════════════════════
+//  RENDER DASHBOARD
+// ══════════════════════════════════════════════
+function sel(id){return document.getElementById(id);}
+// Safe set — never crashes if element missing
+function setEl(id, prop, val){
+  const el=document.getElementById(id);
+  if(el) el[prop]=val;
+}
+function setHtml(id,val){ setEl(id,'innerHTML',val); }
+function setText(id,val){ setEl(id,'textContent',val); }
+
+// ── Threshold & Cooldown save via NativeApp bridge (Android) or localStorage ──
+// Per-sensor threshold
+function saveThresholdForKey(key, pct) {
+  const s=lsGet(); if(!s.thresholds) s.thresholds={};
+  s.thresholds[key]=pct; alertThreshold=pct; lsSet(s);
+  if(window.NativeApp){try{window.NativeApp.saveThresholdMap(JSON.stringify(s.thresholds));}catch(e){}}
+  addLog('Threshold ['+key+']: '+pct+'%','ok');
+}
+function saveThreshold(pct){ saveThresholdForKey('default',pct); }
+
+// Cooldown in MINUTES 1-1440
+function saveCooldown(minutes){
+  const s=lsGet(); s.cooldownMinutes=minutes; lsSet(s);
+  if(window.NativeApp){try{window.NativeApp.saveCooldownMinutes(minutes);}catch(e){}}
+  addLog('Cooldown: '+fmtMins(minutes),'ok');
+}
+function fmtMins(m){
+  m=parseInt(m); if(m<60) return m+' min';
+  const h=Math.floor(m/60),r=m%60;
+  return r>0?h+'h '+r+'m':h+' hr'+(h>1?'s':'');
+}
+function updateCooldownDisp(val){
+  const el=document.getElementById('cooldown-disp');
+  if(el) el.textContent=fmtMins(val);
+}
+
+
+
+// Load saved threshold & cooldown into sliders
+function loadSliderSettings() {
+  try {
+    const s = lsGet();
+
+    // Per-sensor thresholds
+    const thresholds = s.thresholds || {};
+    const sumpT = thresholds['SumpLevel'] || s.threshold || 30;
+    const tankT = thresholds['TankLevel'] || s.threshold || 30;
+    alertThreshold = sumpT; // global fallback
+
+    const ss = document.getElementById('sump-thresh-slider');
+    const sd = document.getElementById('sump-thresh-disp');
+    if(ss) ss.value = sumpT; if(sd) sd.textContent = sumpT + '%';
+
+    const ts = document.getElementById('tank-thresh-slider');
+    const td = document.getElementById('tank-thresh-disp');
+    if(ts) ts.value = tankT; if(td) td.textContent = tankT + '%';
+
+    // Cooldown in minutes
+    const mins = s.cooldownMinutes || (s.cooldownHours ? s.cooldownHours*60 : 60);
+    const cl = document.getElementById('cooldown-slider');
+    if(cl) cl.value = mins;
+    updateCooldownDisp(mins);
+
+    // NativeApp settings
+    if(window.NativeApp) {
+      try {
+        const ns = JSON.parse(window.NativeApp.getSettings());
+        if(ns.tgToken)  { const el=document.getElementById('tg-token');  if(el) el.value=ns.tgToken;  NS.tgToken=ns.tgToken; }
+        if(ns.tgChatId) { const el=document.getElementById('tg-chatid'); if(el) el.value=ns.tgChatId; NS.tgChatId=ns.tgChatId; }
+      } catch(e) {}
+    }
+  } catch(e) {}
+}
+function set(id,prop,val){const el=document.getElementById(id);if(el)el[prop]=val;}
+function render(data){
+  const keys=Object.keys(data);
+  const v=(k)=>k?data[k]?.[0]?.value:null;
+  const ts=(k)=>k?data[k]?.[0]?.ts:null;
+  const n=(k)=>parseFloat(v(k))||0;
+
+  // KEY DETECTION — detect sump first, exclude from main tank matching
+  const sk  = fk(keys, /sump/i, /underground|under_level/i);
+  const mainKeys = sk ? keys.filter(k => k !== sk) : keys;
+  const lk  = fk(mainKeys,
+    /^(WaterLevel|MainLevel|TankLevel|OverheadLevel|OHTLevel)$/i,
+    /main.*level|overhead.*level|tank.*level|oht/i,
+    /^level$|^water$|^wl$/i,
+    /water.*level|level.*water/i,
+    /level|water|wl|litre|liter|height/i,
+    /lvl|lev/i);
+  const mk =fk(keys,/motor|pump|relay/i,/switch|run|output/i,/status|state/i);
+  const vk =fk(keys,/volt|voltage|supply|vcc|vin/i);
+  const tk =fk(keys,/temp|temperature|celsius/i);
+  const flk=fk(keys,/flow|lpm|rate/i);
+  const pk =fk(keys,/pressure|pres|bar/i);
+  const qk =fk(keys,/tds|quality|ppm|turbid/i);
+  const uk =fk(keys,/uptime|runtime|up_time/i);
+
+  // ── MAIN TANK ──
+  if(lk){
+    const pct=Math.min(100,Math.max(0,parseFloat(v(lk))||0));
+    document.getElementById('main-water').style.height=pct+'%';
+    setText('tank-lbl',pct+'%');
+    setText('arc-txt',pct+'%');
+    setArc(document.getElementById('arc-fill'),pct);
+    const bar=document.getElementById('tank-bar');
+    bar.style.width=pct+'%';
+    bar.className='pbar-fill'+(pct>80?' danger':pct<20?' warn':'');
+    setText('tank-sub','Key: '+lk+' · Value: '+v(lk));
+    // arc color
+    const af=document.getElementById('arc-fill');
+    af.className='arc-fill'+(pct>80?' danger':pct<20?' warn':'');
+    // card accent
+    document.getElementById('tank-card').className='card tank-card '+(pct>80?'c-danger':pct<20?'c-warn':'');
+    // alarm
+    const alm=document.getElementById('alarm-val');
+    // Get current device name from dropdown
+    const devSel = document.getElementById('devsel');
+    const currentDevName = devSel ? devSel.options[devSel.selectedIndex]?.text : 'Device';
+    checkAndAlert(pct, currentDevName, lk);
+    if(pct>80){showAlert('Tank FULL: '+pct+'% — Consider stopping motor!','d');if(alm){alm.textContent='HIGH ALERT';alm.style.color='var(--danger)';}}
+    else if(pct<20){showAlert('Tank LOW: '+pct+'% — Motor should start','w');if(alm){alm.textContent='LOW ALERT';alm.style.color='var(--warn)';}}
+    else{hideAlert();if(alm){alm.textContent='NORMAL';alm.style.color='var(--g1)';}}
+  }else if(sk){
+    // Fallback: if no dedicated main tank key but sump key exists, show sump data in main tank
+    const pct=Math.min(100,Math.max(0,parseFloat(v(sk))||0));
+    document.getElementById('main-water').style.height=pct+'%';
+    document.getElementById('tank-lbl').textContent=pct+'%';
+    document.getElementById('arc-txt').textContent=pct+'%';
+    setArc(document.getElementById('arc-fill'),pct);
+    document.getElementById('tank-bar').style.width=pct+'%';
+    document.getElementById('tank-sub').textContent='Key: '+sk+' · Value: '+v(sk)+' (using sump key)';
+    document.getElementById('tank-card').className='card tank-card '+(pct>80?'c-danger':pct<20?'c-warn':'');
+    if(pct>80){showAlert('Level HIGH: '+pct+'%','d');}
+    else if(pct<20){showAlert('Level LOW: '+pct+'% — Motor should start','w');}
+    else{hideAlert();}
+    const alarm=document.getElementById('alarm-val');
+    if(alarm){alarm.textContent=pct>80||pct<20?'ALERT!':'NORMAL';alarm.style.color=pct>80||pct<20?'var(--danger)':'var(--g1)';}
+  }else{document.getElementById('tank-lbl').textContent='N/A';}
+
+  // ── SUMP TANK ──
+  if(sk){
+    const pct=Math.min(100,Math.max(0,parseFloat(v(sk))||0));
+    document.getElementById('sump-water').style.height=pct+'%';
+    setText('sump-lbl',pct+'%');
+    setArc(document.getElementById('sarc-fill'),pct);
+    setText('sarc-txt',pct+'%');
+    document.getElementById('sump-bar').style.width=pct+'%';
+    setText('sump-sub','Key: '+sk+' · '+pct+'%');
+  }else{
+    // If no separate sump key, show a placeholder at 60%
+    document.getElementById('sump-water').style.height='60%';
+    setText('sump-lbl','60%');
+    setArc(document.getElementById('sarc-fill'),60);
+    setText('sarc-txt','60%');
+    document.getElementById('sump-bar').style.width='60%';
+    setText('sump-sub','No sump key detected');
+  }
+
+  // ── MOTOR ──
+  if(mk){
+    const val=v(mk);const t=ts(mk);
+    const on=/^(1|true|on|run|active|yes)$/i.test(String(val).trim());
+    const ring=document.getElementById('motor-ring');
+    ring.textContent=on?'⚙️':'⛔';
+    ring.className='motor-ring'+(on?' on':'');
+    set('motor-lbl','textContent',on?'RUNNING':'STOPPED');
+    set('motor-lbl','className','motor-label '+(on?'on':'off'));
+    set('motor-card','className','card'+(on?' ':''));
+    const bd=document.getElementById('motor-badge');
+    bd.innerHTML=`<div class="motor-badge-dot" style="background:${on?'var(--g1)':'var(--danger)'}"></div><span>${on?'ACTIVE':'IDLE'} &nbsp;·&nbsp; ${mk}: ${val}</span>`;
+    set('motor-ts','textContent',t?new Date(t).toLocaleTimeString():'—');
+    set('motor-sub','textContent','Key: '+mk+' · '+val);
+    // runtime
+    if(on&&!motorStartTs)motorStartTs=Date.now();
+    else if(!on)motorStartTs=null;
+    set('motor-runtime','textContent',motorStartTs?fmtDur(Date.now()-motorStartTs):'—');
+    const av=sel('auto-val');if(av){av.textContent=on?'RUNNING':'STANDBY';av.style.color=on?'var(--g1)':'var(--text2)';}
+  }else{document.getElementById('motor-lbl').textContent='N/A';}
+
+  // ── VOLTAGE ──
+  if(vk){
+    const vv=parseFloat(v(vk))||0;
+    setHtml('volt-val',vv.toFixed(1)+'<span class="cunit">V</span>');
+    document.getElementById('volt-bar').style.width=Math.min(100,(vv/24)*100)+'%';
+    setText('volt-sub','Key: '+vk);
+    const icon=document.getElementById('bolt-icon');
+    icon.style.filter=vv<10?'drop-shadow(0 0 10px var(--danger))':'drop-shadow(0 0 10px var(--yellow))';
+  }
+
+  // ── TEMPERATURE ──
+  if(tk){
+    const tv=parseFloat(v(tk))||0;
+    setHtml('temp-val',tv.toFixed(1)+'<span class="cunit">°C</span>');
+    document.getElementById('thermo-fill').style.height=Math.min(100,(tv/50)*100)+'%';
+    setText('temp-sub','Key: '+tk);
+    const state=document.getElementById('temp-state');
+    if(tv>40){state.textContent='HOT';state.className='pill d';}
+    else if(tv>30){state.textContent='WARM';state.className='pill w';}
+    else{state.textContent='NOMINAL';state.className='pill g';}
+    document.getElementById('temp-val').style.color=tv>40?'var(--danger)':tv>30?'var(--warn)':'var(--warn)';
+  }
+
+  // ── FLOW ──
+  if(flk){
+    const fv=parseFloat(v(flk))||0;
+    setHtml('flow-val',fv.toFixed(1)+'<span class="cunit">L/min</span>');
+    setText('flow-gtxt',fv.toFixed(0));
+    const off=107*(1-Math.min(1,fv/20));
+    document.getElementById('flow-arc').style.strokeDashoffset=off.toFixed(1);
+    setText('flow-sub','Key: '+flk);
+  }
+
+  // ── PRESSURE ──
+  if(pk){
+    const pv=parseFloat(v(pk))||0;
+    setHtml('pres-val',pv.toFixed(2)+'<span class="cunit">bar</span>');
+    document.getElementById('pres-bar').style.width=Math.min(100,(pv/10)*100)+'%';
+    setText('pres-sub','Key: '+pk);
+  }
+
+  // ── TDS / QUALITY ──
+  if(qk){
+    const qv=parseFloat(v(qk))||0;
+    setHtml('tds-val',qv.toFixed(0)+'<span class="cunit">ppm</span>');
+    document.getElementById('tds-bar').style.width=Math.min(100,(qv/1000)*100)+'%';
+    setText('tds-sub','Key: '+qk);
+    const pill=document.getElementById('tds-pill');
+    if(qv>500)pill.innerHTML='<span class="pill d">POOR</span>';
+    else if(qv>200)pill.innerHTML='<span class="pill w">FAIR</span>';
+    else pill.innerHTML='<span class="pill g">CLEAN</span>';
+  }
+
+  // ── UPTIME ──
+  if(uk){
+    setText('uptime-val',v(uk)||'—');
+    setText('uptime-sub','Key: '+uk);
+  }else{
+    const oldestTs=Math.min(...Object.values(data).map(a=>a[0]?.ts||Date.now()));
+    setText('uptime-val',fmtDur(Date.now()-oldestTs));
+    setText('uptime-sub','Since oldest reading');
+  }
+
+  try{ renderControl(data,keys).catch(()=>{}); }catch(e){}
+
+  // ── TELEMETRY TABLE ──
+  const tcEl=document.getElementById('tele-cnt'); if(tcEl) tcEl.textContent=keys.length;
+  setHtml('tele-body',keys.length
+    ?keys.map(k=>{
+      const entry=data[k][0];
+      const t=entry?.ts;
+      const age=t?Math.round((Date.now()-t)/1000):null;
+      const ageStr=age!=null?(age<60?age+'s':(age<3600?Math.floor(age/60)+'m':Math.floor(age/3600)+'h')):'—';
+      return`<tr>
+        <td class="tkey">${k}</td>
+        <td class="tval">${entry?.value??'—'}</td>
+        <td class="tts">${t?new Date(t).toLocaleTimeString():'—'}</td>
+        <td class="tts">${ageStr} ago</td>
+      </tr>`;
+    }).join('')
+    :'<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px;">No telemetry data</td></tr>');
+}
+
+// ══════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════
+// Check if background service has all it needs
+function checkServiceStatus() {
+  const s = lsGet();
+  const hasCreds = s.tbEmail && s.tbEmail.length > 0;
+  const hasTG    = s.tgToken && s.tgToken.length > 0 && s.tgChatId && s.tgChatId.length > 0;
+
+  const svcBanner  = document.getElementById('svc-banner');
+  const warnBanner = document.getElementById('svc-warn-banner');
+
+  if (hasCreds && hasTG) {
+    if (svcBanner)  { svcBanner.style.display  = 'flex'; }
+    if (warnBanner) { warnBanner.style.display = 'none'; }
+    // Push all settings to native service if available
+    if (window.NativeApp) {
+      try {
+        const ns = JSON.parse(window.NativeApp.getSettings());
+        if (!ns.tbEmail && s.tbEmail) {
+          window.NativeApp.saveServer(BASE, s.tbEmail, '');
+        }
+        if (!ns.tgToken && s.tgToken) {
+          window.NativeApp.saveTelegram(s.tgToken, s.tgChatId||'');
+        }
+      } catch(e) {}
+    }
+  } else {
+    if (svcBanner)  { svcBanner.style.display  = 'none'; }
+    if (warnBanner) { warnBanner.style.display = 'block'; }
+  }
+}
+
+function fmtDur(ms){
+  const s=Math.floor(ms/1000);
+  if(s<60)return s+'s';
+  const m=Math.floor(s/60);
+  if(m<60)return m+'m '+(s%60)+'s';
+  const h=Math.floor(m/60);
+  if(h<24)return h+'h '+(m%60)+'m';
+  return Math.floor(h/24)+'d '+( h%24)+'h';
+}
+
+
+// ══════════════════════════════════════════════
+//  NOTIFICATION SYSTEM
+//  Uses in-memory store (works on all browsers
+//  including Android content:// file URLs)
+// ══════════════════════════════════════════════
+let notifEnabled = false;
+let lastAlertTs  = 0;
+let alertThreshold = 30;
+const COOLDOWN_MS  = 60 * 60 * 1000; // 60 min cooldown
+const notifHistory = [];
+
+// In-memory settings object (persists while page is open)
+const NS = {
+  tgToken:'', tgChatId:'',
+  emAddr:'', emPubkey:'', emSvcid:'', emTmpid:''
+};
+
+// Try localStorage as best-effort persistence; silently ignore errors
+function lsGet(){ try{ return JSON.parse(localStorage.getItem('aquaNotif')||'{}'); }catch(e){ return {}; } }
+function lsSet(obj){ try{ localStorage.setItem('aquaNotif', JSON.stringify(obj)); }catch(e){} }
+
+function loadNotifSettings() {
+  const s = lsGet();
+  if(s.tgToken)  { NS.tgToken=s.tgToken;   const el=document.getElementById('tg-token');  if(el)el.value=s.tgToken; }
+  if(s.tgChatId) { NS.tgChatId=s.tgChatId; const el=document.getElementById('tg-chatid'); if(el)el.value=s.tgChatId; }
+  if(s.emAddr)   { NS.emAddr=s.emAddr;     const el=document.getElementById('em-addr');   if(el)el.value=s.emAddr; }
+  if(s.emPubkey) { NS.emPubkey=s.emPubkey; const el=document.getElementById('em-pubkey');if(el)el.value=s.emPubkey; }
+  if(s.emSvcid)  { NS.emSvcid=s.emSvcid;   const el=document.getElementById('em-svcid'); if(el)el.value=s.emSvcid; }
+  if(s.emTmpid)  { NS.emTmpid=s.emTmpid;   const el=document.getElementById('em-tmpid'); if(el)el.value=s.emTmpid; }
+  if(s.threshold){ alertThreshold=s.threshold; const sl=document.getElementById('thresh-slider'); if(sl)sl.value=s.threshold; const td=document.getElementById('thresh-disp'); if(td)td.textContent=s.threshold; }
+  if(s.enabled)  { notifEnabled=true; updateNotifToggle(true); }
+  if(s.lastAlertTs) lastAlertTs=s.lastAlertTs;
+  log('Notification settings loaded','ok');
+}
+
+function saveSettings() {
+  const s=lsGet(); s.threshold=alertThreshold; s.enabled=notifEnabled; s.lastAlertTs=lastAlertTs; lsSet(s);
+}
+
+// saveWA removed — using Telegram
+
+function saveEmail() {
+  NS.emAddr  =(document.getElementById('em-addr')  ||{}).value||'';
+  NS.emPubkey=(document.getElementById('em-pubkey')||{}).value||'';
+  NS.emSvcid =(document.getElementById('em-svcid') ||{}).value||'';
+  NS.emTmpid =(document.getElementById('em-tmpid') ||{}).value||'';
+  if(!NS.emAddr||!NS.emPubkey){ showNotifStatus('em','err','✗ Email and Public Key required'); return; }
+  NS.emAddr=NS.emAddr.trim(); NS.emPubkey=NS.emPubkey.trim(); NS.emSvcid=NS.emSvcid.trim(); NS.emTmpid=NS.emTmpid.trim();
+  const s=lsGet(); s.emAddr=NS.emAddr; s.emPubkey=NS.emPubkey; s.emSvcid=NS.emSvcid; s.emTmpid=NS.emTmpid; lsSet(s);
+  showNotifStatus('em','ok','✓ Email settings saved!');
+  log('Email saved: '+NS.emAddr,'ok');
+}
+
+function onThreshChange(val) {
+  alertThreshold = parseInt(val);
+  document.getElementById('thresh-disp').textContent = val;
+  saveSettings();
+}
+
+function toggleNotif() {
+  notifEnabled = !notifEnabled;
+  updateNotifToggle(notifEnabled);
+  saveSettings();
+  log('Alerts ' + (notifEnabled ? 'ENABLED' : 'DISABLED') + ' at threshold ' + alertThreshold + '%', notifEnabled ? 'ok' : 'info');
+}
+
+function updateNotifToggle(on) {
+  const t = document.getElementById('ntoggle');
+  const l = document.getElementById('ntoggle-lbl');
+  if (t) { t.className = 'ntoggle-track' + (on ? ' on' : ''); }
+  if (l) { l.textContent = on ? 'ALERTS ON' : 'ALERTS OFF'; l.style.color = on ? 'var(--g1)' : 'var(--text2)'; }
+}
+
+function showNotifStatus(type, cls, msg) {
+  const id = type === 'em' ? 'em-status' : 'tg-status';
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'inline-block';
+  el.className = 'notif-status ' + cls;
+  el.textContent = msg;
+  setTimeout(() => { if (el) el.style.display = 'none'; }, 5000);
+}
+
+// ── SEND TELEGRAM ──
+// Telegram Bot API: full CORS support, works everywhere in India.
+// GET request → no server needed → instant delivery.
+function buildTGUrl(msg) {
+  const token  = NS.tgToken.trim();
+  const chatId = NS.tgChatId.trim();
+  return 'https://api.telegram.org/bot' + token
+    + '/sendMessage?chat_id=' + encodeURIComponent(chatId)
+    + '&text=' + encodeURIComponent(msg)
+    + '&parse_mode=HTML';
+}
+
+function validateTG() {
+  if (!NS.tgToken)  return '✗ Bot Token is empty';
+  if (!NS.tgChatId) return '✗ Chat ID is empty';
+  if (!NS.tgToken.includes(':')) return '✗ Token looks wrong — should contain ":"';
+  return null;
+}
+
+function sendTelegram(msg) {
+  return new Promise((resolve) => {
+    const err = validateTG();
+    if (err) { log('TG: '+err,'err'); showNotifStatus('tg','err',err); resolve(false); return; }
+    const url = buildTGUrl(msg);
+    log('Sending Telegram to '+NS.tgChatId+'…','info');
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = 15000;
+    xhr.onload = function() {
+      try {
+        const d = JSON.parse(xhr.responseText);
+        if(d.ok){ log('✓ Telegram sent!','ok'); addNotifHistory('✈️ Telegram → '+NS.tgChatId,true); resolve(true); }
+        else { log('✗ Telegram: '+(d.description||'failed'),'err'); addNotifHistory('✈️ Telegram FAILED',false); showNotifStatus('tg','err','✗ '+(d.description||'failed')); resolve(false); }
+      } catch(e) { log('✗ Telegram parse: '+e.message,'err'); resolve(false); }
+    };
+    xhr.onerror   = ()=>{ log('✗ Telegram network error','err'); addNotifHistory('✈️ FAILED',false); resolve(false); };
+    xhr.ontimeout = ()=>{ log('✗ Telegram timeout','err'); resolve(false); };
+    xhr.send();
+  });
+}
+
+function saveTG() {
+  const token  = (document.getElementById('tg-token')  ||{}).value||'';
+  const chatId = (document.getElementById('tg-chatid') ||{}).value||'';
+  if (!token || !chatId) { showNotifStatus('tg','err','✗ Enter both Token and Chat ID'); return; }
+  NS.tgToken  = token.trim();
+  NS.tgChatId = chatId.trim();
+
+  // Save to localStorage
+  const s = lsGet(); s.tgToken = NS.tgToken; s.tgChatId = NS.tgChatId; lsSet(s);
+
+  // ── CRITICAL: Push to Android background service via NativeBridge ──
+  if(window.NativeApp) {
+    window.NativeApp.saveTelegram(NS.tgToken, NS.tgChatId);
+    log('Telegram saved to background service ✓','ok');
+  }
+
+  showNotifStatus('tg','ok','✓ Saved! Background service will use this.');
+  log('Telegram: token=' + NS.tgToken.substring(0,10) + '… chatId=' + NS.tgChatId, 'ok');
+}
+
+async function testTelegram() {
+  const token  = (document.getElementById('tg-token')  ||{}).value||'';
+  const chatId = (document.getElementById('tg-chatid') ||{}).value||'';
+  if (!token || !chatId) { showNotifStatus('tg','err','✗ Enter Token and Chat ID first'); return; }
+  NS.tgToken  = token.trim();
+  NS.tgChatId = chatId.trim();
+  const verr = validateTG();
+  if (verr) { showNotifStatus('tg','err', verr); return; }
+  showNotifStatus('tg','send','⟳ Sending…');
+  const msg = '<b>✅ Aqua Monitor — Test Alert</b>\n\nYour Telegram notifications are working!\n\n'
+    + '🏠 Dashboard: e-live.in\n'
+    + '⏰ Time: ' + new Date().toLocaleString('en-IN');
+  const ok = await sendTelegram(msg);
+  const tgs2=document.getElementById('tg-status');
+  if(tgs2){
+    tgs2.style.display='block';
+    if(ok){tgs2.style.background='rgba(0,255,136,0.1)';tgs2.style.border='1px solid var(--g1)';tgs2.style.color='var(--g1)';tgs2.textContent='✓ Message delivered! Check Telegram now.';}
+    else{tgs2.style.background='rgba(255,45,85,0.1)';tgs2.style.border='1px solid var(--danger)';tgs2.style.color='var(--danger)';tgs2.textContent='✗ Failed — double-check token & chat ID';}
+  }
+}
+
+// ── SEND EMAIL via EmailJS ──
+async function sendEmail(subject, msg) {
+  const { emAddr, emPubkey, emSvcid, emTmpid } = NS;
+  if (!emAddr || !emPubkey || !emSvcid || !emTmpid) { log('Email: settings incomplete', 'err'); return false; }
+  try {
+    const payload = {
+      service_id:  emSvcid,
+      template_id: emTmpid,
+      user_id:     emPubkey,
+      template_params: {
+        to_email: emAddr,
+        subject:  subject,
+        message:  msg,
+        level:    msg,
+        time:     new Date().toLocaleString()
+      }
+    };
+    const r = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error('EmailJS: ' + r.status);
+    log('Email sent to ' + emAddr, 'ok');
+    addNotifHistory('📧 Email → ' + emAddr, true);
+    return true;
+  } catch(e) {
+    log('Email failed: ' + e.message, 'err');
+    addNotifHistory('📧 Email FAILED: ' + e.message, false);
+    return false;
+  }
+}
+
+async function testEmail() {
+  showNotifStatus('em', 'send', '⟳ Sending test...');
+  const ok = await sendEmail('🧪 Aqua Monitor Test', 'Test alert from Aqua Monitor dashboard. Your email notifications are working!');
+  showNotifStatus('em', ok ? 'ok' : 'err', ok ? '✓ Test email sent!' : '✗ Failed — check EmailJS settings');
+}
+
+// ── MAIN ALERT TRIGGER ──
+// deviceName: human readable name e.g. "Water Level Controller 01"
+// deviceKey:  telemetry key that triggered e.g. "SumpLevel"
+async function checkAndAlert(levelPct, deviceName, deviceKey) {
+  if (!notifEnabled) return;
+
+  const s = lsGet();
+
+  // Per-sensor threshold — each key has its own threshold
+  const thresholds = s.thresholds || {};
+  // Try to match the key to a known sensor name
+  let thresh = alertThreshold; // fallback
+  for(const [k, v] of Object.entries(thresholds)) {
+    if(deviceKey && deviceKey.toLowerCase().includes(k.toLowerCase())) { thresh = v; break; }
+    if(k.toLowerCase().includes('sump') && deviceKey && /sump/i.test(deviceKey)) { thresh = v; break; }
+    if(k.toLowerCase().includes('tank') && deviceKey && /tank|water|level|main/i.test(deviceKey)) { thresh = v; break; }
+  }
+  if(Object.keys(thresholds).length === 0) thresh = alertThreshold;
+
+  // Per-sensor cooldown in MINUTES
+  const cooldownKey = 'lastAlert_' + (deviceName||'') + '_' + (deviceKey||'');
+  const lastDevAlert = s[cooldownKey] || 0;
+  const cooldownMinutes = s.cooldownMinutes || ((s.cooldownHours||1) * 60);
+  const cooldownMs = cooldownMinutes * 60 * 1000;
+  const remaining = cooldownMs - (Date.now() - lastDevAlert);
+
+  if (remaining > 0) {
+    const minsLeft = Math.ceil(remaining / 60000);
+    log((deviceKey||'?') + ' cooldown: ' + fmtMins(minsLeft) + ' left', 'info');
+    return;
+  }
+  if (levelPct >= thresh) return;
+
+  // Threshold breached — fire alert for this device!
+  s[cooldownKey] = Date.now();
+  lsSet(s);
+
+  const msg =
+    '⚠️ <b>WATER LEVEL ALERT</b>\n\n' +
+    '🏠 Device: <b>' + (deviceName || 'Unknown') + '</b>\n' +
+    '🔑 Sensor: <b>' + (deviceKey  || 'level')   + '</b>\n' +
+    '💧 Level: <b>' + levelPct + '%</b>\n' +
+    '🔔 Alert below: <b>' + thresh + '%</b>\n' +
+    '⏰ ' + new Date().toLocaleString('en-IN') + '\n' +
+    '🔁 Next alert: <b>' + fmtMins(cooldownMinutes) + '</b>\n\n' +
+    '👉 Start the motor!';
+
+  const emailSubject = '⚠️ ' + (deviceKey||'Level') + ' Alert — ' + levelPct + '%';
+  log('🚨 ALERT: ' + (deviceName||'?') + ' [' + (deviceKey||'?') + '] = ' + levelPct + '% < ' + thresh + '%', 'err');
+
+  await sendTelegram(msg);
+  await sendEmail(emailSubject, msg.replace(/<[^>]+>/g,'').replace(/\n/g,' | '));
+}
+
+// ── NOTIFICATION HISTORY ──
+function addNotifHistory(entry, success) {
+  notifHistory.unshift({ text: entry, ok: success, time: new Date().toLocaleTimeString() });
+  if (notifHistory.length > 20) notifHistory.pop();
+  renderNotifHistory(notifHistory);
+}
+
+function renderNotifHistory(history) {
+  const el = document.getElementById('notif-history');
+  if (!el || !history || !history.length) return;
+  el.innerHTML = history.map(h =>
+    `<div class="nh-entry ${h.ok ? 'sent' : 'fail'}">${h.time} · ${h.ok ? '✓' : '✗'} ${h.text}</div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════
+//  MOTOR CONTROL · MANUAL/BYPASS · RESET
+// ══════════════════════════════════════════════
+const CTL_DEF={bypass:'setBypass',reset:'reset',mode:'rpc2',style:'bool'};
+function ctlCfg(){ const s=lsGet(); return Object.assign({},CTL_DEF,s.ctl||{}); }
+function pushCtl(){
+  if(!devId) return;
+  const c=ctlCfg();
+  if(window.NativeApp){ try{ window.NativeApp.saveControlConfig(devId,c.bypass,c.mode,c.style); }catch(e){} }
+}
+function loadCtlForm(){
+  const c=ctlCfg();
+  set('cfg-bypass','value',c.bypass); set('cfg-reset','value',c.reset);
+  set('cfg-mode','value',c.mode); set('cfg-style','value',c.style);
+}
+function saveCtl(){
+  const s=lsGet();
+  s.ctl={
+    bypass:(document.getElementById('cfg-bypass').value||'').trim()||CTL_DEF.bypass,
+    reset:(document.getElementById('cfg-reset').value||'').trim()||CTL_DEF.reset,
+    mode:document.getElementById('cfg-mode').value,
+    style:document.getElementById('cfg-style').value
+  };
+  lsSet(s); pushCtl(); ctlMsg('Command settings saved ✓','ok');
+}
+function ctlMsg(t,kind){
+  const el=document.getElementById('ctl-msg'); if(!el) return;
+  el.textContent=t; el.style.color=kind==='err'?'var(--danger)':kind==='ok'?'var(--g1)':'';
+}
+function truthy(v){
+  if(v===null||v===undefined) return null;
+  const s=String(v).trim().toLowerCase();
+  if(['1','true','on','yes','dry','run','active'].includes(s)) return true;
+  if(['0','false','off','no','ok','normal','stop','inactive'].includes(s)) return false;
+  const n=parseFloat(s); return isNaN(n)?null:n>0;
+}
+function ctlValue(on,c){ return c.style==='int'?(on?1:0):!!on; }
+
+// send one command to the selected device
+async function ctlSend(method,on,c){
+  if(!devId) throw new Error('No device selected');
+  const val=ctlValue(on,c);
+  if(c.mode==='attr'){
+    return api(`/api/plugins/telemetry/DEVICE/${devId}/attributes/SHARED_SCOPE`,'POST',{[method]:val});
+  }
+  if(c.mode==='rpc1'){
+    return api(`/api/plugins/rpc/oneway/${devId}`,'POST',{method:method,params:val});
+  }
+  return api(`/api/plugins/rpc/twoway/${devId}`,'POST',{method:method,params:val,timeout:15000});
+}
+function niceErr(e){
+  const m=String(e&&e.message||e);
+  if(m.startsWith('408')) return 'Device did not respond (offline?)';
+  if(m.startsWith('409')) return 'Device is offline';
+  if(m.startsWith('401')||m.startsWith('403')) return 'Not allowed — log in again';
+  if(m.startsWith('404')) return 'Command not found on server';
+  return m;
+}
+
+let bypassBusy=false;
+async function onBypassToggle(cb){
+  if(bypassBusy) return;
+  const want=cb.checked;
+  if(want && !confirm('Turn Manual/Bypass ON?\nThis may bypass the normal motor protection.')){ cb.checked=false; return; }
+  bypassBusy=true; cb.disabled=true; ctlMsg('Sending '+(want?'ON':'OFF')+'…');
+  try{
+    await ctlSend(ctlCfg().bypass,want,ctlCfg());
+    ctlMsg('✓ Sent Bypass '+(want?'ON':'OFF')+' at '+new Date().toLocaleTimeString(),'ok');
+    log('Bypass '+(want?'ON':'OFF')+' sent','ok');
+    setTimeout(fetchTele,3000);
+  }catch(e){
+    cb.checked=!want;
+    ctlMsg('✗ '+niceErr(e),'err'); log('Bypass failed: '+niceErr(e),'err');
+  }
+  bypassBusy=false; cb.disabled=false;
+}
+async function sendReset(){
+  if(!confirm('Send RESET to the device?')) return;
+  const b=document.getElementById('reset-btn'); b.disabled=true; ctlMsg('Sending RESET…');
+  try{
+    await ctlSend(ctlCfg().reset,true,ctlCfg());
+    ctlMsg('✓ Reset sent at '+new Date().toLocaleTimeString(),'ok'); log('Reset sent','ok');
+    setTimeout(fetchTele,3000);
+  }catch(e){ ctlMsg('✗ '+niceErr(e),'err'); log('Reset failed: '+niceErr(e),'err'); }
+  b.disabled=false;
+}
+
+// attributes (fallback when the bypass state is not in telemetry)
+let attrTs=0, attrCache={};
+async function fetchAttrs(){
+  if(!devId||Date.now()-attrTs<25000) return attrCache;
+  attrTs=Date.now();
+  try{
+    const r=await api(`/api/plugins/telemetry/DEVICE/${devId}/values/attributes`);
+    const o={}; (Array.isArray(r)?r:[]).forEach(a=>{o[a.key]=a.value;}); attrCache=o;
+  }catch(e){}
+  return attrCache;
+}
+
+let lastCtlDev=null;
+async function renderControl(data,keys){
+  if(devId!==lastCtlDev){ lastCtlDev=devId; pushCtl(); loadCtlForm(); attrTs=0; alarmTs=0; }
+  const v=(k)=>k?data[k]?.[0]?.value:null;
+  const bk =fk(keys,/bypass/i,/manual/i);
+  const dk =fk(keys,/dry/i);
+  const flk=fk(keys,/flow/i);
+  const ck =fk(keys,/^(current|amps?|ampere|i_?motor|motor_?current)$/i,/current|ampere/i);
+  const mk =fk(keys,/motor|pump|relay/i,/switch|run|output/i,/status|state/i);
+
+  // bypass state: telemetry first, then attributes
+  let bval=bk?v(bk):null, bsrc=bk;
+  if(bval===null){
+    const a=await fetchAttrs();
+    const ak=Object.keys(a).find(k=>/bypass|manual/i.test(k));
+    if(ak){ bval=a[ak]; bsrc=ak+' (attr)'; }
+  }
+  const b=truthy(bval);
+  const sw=document.getElementById('bypass-sw');
+  if(sw && !bypassBusy && b!==null) sw.checked=b;
+  const bs=document.getElementById('bypass-state');
+  if(bs){ bs.textContent=b===null?'—':(b?'ON':'OFF'); bs.style.color=b?'var(--warn)':b===false?'var(--g1)':'var(--muted)'; }
+
+  const d=truthy(v(dk));
+  const dEl=document.getElementById('dry-state');
+  if(dEl){ dEl.textContent=d===null?'—':(d?'DRY RUN!':'OK'); dEl.style.color=d?'var(--danger)':d===false?'var(--g1)':'var(--muted)'; }
+  if(d) showAlert('DRY RUN detected — pump running without water!','d');
+
+  const f=truthy(v(flk));
+  const fEl=document.getElementById('flow-state');
+  if(fEl){ fEl.textContent=f===null?'—':(f?'FLOWING':'NO FLOW'); fEl.style.color=f?'var(--blue)':f===false?'var(--warn)':'var(--muted)'; }
+
+  const cEl=document.getElementById('cur-val');
+  if(cEl){ const cv=parseFloat(v(ck)); cEl.textContent=isNaN(cv)?'—':cv.toFixed(1)+' A'; }
+
+  const m=truthy(v(mk));
+  const mEl=document.getElementById('mot-state');
+  if(mEl){ mEl.textContent=m===null?'—':(m?'RUNNING':'STOPPED'); mEl.style.color=m?'var(--g1)':'var(--muted)'; }
+
+  setText('prot-sub','Keys: '+[bsrc,dk,flk,ck,mk].filter(Boolean).join(', '));
+}
+
+// alarm list
+let alarmTs=0;
+async function loadAlarms(){
+  const box=document.getElementById('alarm-list'); if(!box||!devId) return;
+  if(Date.now()-alarmTs<55000) return; alarmTs=Date.now();
+  try{
+    const r=await api(`/api/alarm/DEVICE/${devId}?pageSize=8&page=0&sortProperty=createdTime&sortOrder=DESC`);
+    const list=r.data||[];
+    if(!list.length){ box.innerHTML='<span style="color:var(--g1);">✓ No alarms</span>'; return; }
+    const col={CRITICAL:'var(--danger)',MAJOR:'var(--danger)',MINOR:'var(--warn)',WARNING:'var(--warn)',INDETERMINATE:'var(--muted)'};
+    box.innerHTML=list.map(a=>{
+      const act=/ACTIVE/.test(a.status||'');
+      return `<div class="ctl-row"><span style="color:${col[a.severity]||'var(--text2)'};">${act?'●':'○'} ${esc(a.type||a.name||'Alarm')}</span>`+
+        `<span>${esc(a.severity||'')} · ${esc((a.status||'').replace('_',' '))} · ${a.createdTime?new Date(a.createdTime).toLocaleString():''}</span></div>`;
+    }).join('');
+  }catch(e){ box.textContent='Alarm list not available ('+niceErr(e)+')'; }
+}
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ══════════════════════════════════════════════
+//  SCHEDULE  (runs natively in the Android app)
+// ══════════════════════════════════════════════
+const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let SCHED=[];
+function loadSched(){
+  try{
+    SCHED=window.NativeApp?JSON.parse(window.NativeApp.getSchedules()||'[]'):(lsGet().schedules||[]);
+  }catch(e){ SCHED=[]; }
+  const warn=document.getElementById('sched-warn'), web=document.getElementById('sched-web-warn');
+  if(web) web.style.display=window.NativeApp?'none':'block';
+  if(warn){ let ok=true; try{ ok=!window.NativeApp||window.NativeApp.canExactAlarms(); }catch(e){} warn.style.display=ok?'none':'block'; }
+  renderSched(); renderSchedLog();
+}
+function persistSched(){
+  if(window.NativeApp){ try{ window.NativeApp.saveSchedules(JSON.stringify(SCHED)); }catch(e){} }
+  else{ const s=lsGet(); s.schedules=SCHED; lsSet(s); }
+  renderSched();
+}
+function nextRun(s){
+  if(!s.enabled||!s.days||!s.days.length) return null;
+  const [h,m]=s.time.split(':').map(Number); const now=new Date();
+  for(let i=0;i<=7;i++){
+    const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i,h,m,0,0);
+    if(d>now && s.days.includes(d.getDay())) return d;
+  }
+  return null;
+}
+function renderSched(){
+  const box=document.getElementById('sched-list'); if(!box) return;
+  if(!SCHED.length){ box.innerHTML='<div class="mini">No schedules yet.</div>'; return; }
+  const sorted=[...SCHED].sort((a,b)=>a.time.localeCompare(b.time));
+  box.innerHTML=sorted.map(s=>{
+    const nx=nextRun(s);
+    const chips=[1,2,3,4,5,6,0].map(d=>`<span class="chip${s.days.includes(d)?' on':''}">${DAY_NAMES[d]}</span>`).join('');
+    return `<div class="sched-item">
+      <div><div class="sched-time ${s.action}">${esc(s.time)} · Bypass ${s.action==='on'?'ON':'OFF'}</div>
+        <div>${chips}</div>
+        <div class="mini">${nx?'Next: '+nx.toLocaleString([], {weekday:'short',hour:'2-digit',minute:'2-digit'}):(s.enabled?'No days selected':'Paused')}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <label class="sw"><input type="checkbox" ${s.enabled?'checked':''} onchange="toggleSched(${s.id},this.checked)"><span></span></label>
+        <button class="btn-danger" onclick="delSched(${s.id})">DELETE</button></div>
+    </div>`;
+  }).join('');
+}
+function addSched(){
+  const time=document.getElementById('sch-time').value;
+  const action=document.getElementById('sch-action').value;
+  const days=[...document.querySelectorAll('#sch-days input:checked')].map(i=>parseInt(i.value,10));
+  if(!time){ alert('Pick a time'); return; }
+  if(!days.length){ alert('Pick at least one day'); return; }
+  SCHED.push({id:Math.floor(Math.random()*2147000000)+1,time:time,action:action,days:days,enabled:true});
+  persistSched();
+}
+function toggleSched(id,on){ const s=SCHED.find(x=>x.id===id); if(s){ s.enabled=on; persistSched(); } }
+function delSched(id){ if(!confirm('Delete this schedule?')) return; SCHED=SCHED.filter(x=>x.id!==id); persistSched(); }
+function renderSchedLog(){
+  const el=document.getElementById('sched-log'); if(!el) return;
+  let l=[]; try{ l=window.NativeApp?JSON.parse(window.NativeApp.getScheduleLog()||'[]'):[]; }catch(e){}
+  el.innerHTML=l.length?l.slice(0,6).map(e=>
+    `<div style="color:${e.ok?'var(--g1)':'var(--danger)'};">${e.ok?'✓':'✗'} ${new Date(e.ts).toLocaleString()} · Bypass ${String(e.action).toUpperCase()} · ${esc(e.msg||'')}</div>`).join(''):'No scheduled runs yet.';
+}
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+// Show login form on load (auto-login causes issues with local files)
+window.onload=()=>{
+  loadSliderSettings();
+  // Auto-detect theme
+  const h=new Date().getHours();
+  if(h>=6&&h<18){document.documentElement.dataset.theme='day';document.getElementById('theme-lbl').textContent='☀️ DAY';}
+  // Try auto-login after short delay to let page settle
+  loadNotifSettings();
+  loadCtlForm();
+  loadSched();
+  // fill the login form from the login saved on this phone (nothing is hard-coded)
+  let saved={};
+  try{ if(window.NativeApp) saved=JSON.parse(window.NativeApp.getSavedLogin()||'{}'); }catch(e){}
+  if(saved.email) document.getElementById('uname').value=saved.email;
+  if(saved.password) document.getElementById('upass').value=saved.password;
+  if(saved.email && saved.password){
+    setText('login-hint','Auto-connecting to e-live.in…');
+    setTimeout(doLogin, 500);
+  }
+};
+</script>
+</body>
+</html>
