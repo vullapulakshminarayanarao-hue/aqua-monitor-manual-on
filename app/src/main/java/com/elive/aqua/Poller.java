@@ -31,7 +31,7 @@ public class Poller {
                 ctx.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm.getNotificationChannel(CH_SVC) == null)
                 nm.createNotificationChannel(new NotificationChannel(
-                    CH_SVC, "Aqua Monitor Service", NotificationManager.IMPORTANCE_MIN));
+                    CH_SVC, "Trust Water Controller Service", NotificationManager.IMPORTANCE_MIN));
             if (nm.getNotificationChannel(CH_ALERT) == null) {
                 NotificationChannel ac = new NotificationChannel(
                     CH_ALERT, "Water Level Alerts", NotificationManager.IMPORTANCE_HIGH);

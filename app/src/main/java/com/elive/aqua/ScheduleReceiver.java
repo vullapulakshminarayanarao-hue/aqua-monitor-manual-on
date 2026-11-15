@@ -31,7 +31,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
 
         PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
         final PowerManager.WakeLock wl = pm == null ? null
-            : pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AquaMonitor::Schedule");
+            : pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TrustWaterController::Schedule");
         if (wl != null) wl.acquire(90000L);
 
         new Thread(new Runnable() {

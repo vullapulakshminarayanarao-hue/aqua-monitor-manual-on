@@ -14,7 +14,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="Aqua Monitor"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security"

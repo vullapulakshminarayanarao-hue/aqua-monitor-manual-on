@@ -66,13 +66,13 @@ public class MonitorService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             return new Notification.Builder(this, Poller.CH_SVC)
-                .setContentTitle("Aqua Monitor")
+                .setContentTitle("Trust Water Controller")
                 .setContentText("Monitoring water levels")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentIntent(pi).setOngoing(true).build();
         }
         return new Notification.Builder(this)
-            .setContentTitle("Aqua Monitor")
+            .setContentTitle("Trust Water Controller")
             .setContentText("Monitoring water levels")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(Notification.PRIORITY_MIN)
