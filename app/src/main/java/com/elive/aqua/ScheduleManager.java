@@ -72,7 +72,7 @@ final class ScheduleManager {
         // cancel the ones we armed last time
         Set<String> old = p(c).getStringSet("sched_armed", new HashSet<String>());
         for (String s : old) {
-            try { am.cancel(pending(c, Integer.parseInt(s))); } catch (Exception ignored) {}
+            try { am.cancel(pending(c, Integer.parseInt(s), 0L)); } catch (Exception ignored) {}
         }
 
         Set<String> armed = new HashSet<String>();
@@ -124,16 +124,17 @@ final class ScheduleManager {
         return -1;
     }
 
-    private static PendingIntent pending(Context c, int id) {
+    private static PendingIntent pending(Context c, int id, long at) {
         Intent i = new Intent(c, ScheduleReceiver.class);
         i.setAction(ACTION_FIRE);
         i.putExtra("id", id);
+        i.putExtra("at", at);   // when it was due, so a late alarm is never replayed
         return PendingIntent.getBroadcast(c, id, i,
             PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private static void arm(Context c, AlarmManager am, int id, long at) {
-        PendingIntent pi = pending(c, id);
+        PendingIntent pi = pending(c, id, at);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             // Exact alarms not allowed: still fires, but Android may delay it a few minutes.
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);

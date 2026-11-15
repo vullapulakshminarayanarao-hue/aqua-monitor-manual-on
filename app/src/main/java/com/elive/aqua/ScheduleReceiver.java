@@ -14,6 +14,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(final Context ctx, Intent intent) {
         final int id = intent.getIntExtra("id", -1);
+        final long due = intent.getLongExtra("at", 0L);
         final Context app = ctx.getApplicationContext();
 
         // Arm the next occurrence right away (cheap, synchronous).
@@ -36,7 +37,7 @@ public class ScheduleReceiver extends BroadcastReceiver {
         new Thread(new Runnable() {
             public void run() {
                 try {
-                    execute(app, id);
+                    execute(app, id, due);
                 } finally {
                     if (wl != null && wl.isHeld()) wl.release();
                 }
@@ -44,24 +45,49 @@ public class ScheduleReceiver extends BroadcastReceiver {
         }).start();
     }
 
-    private void execute(Context app, int id) {
+    /** An alarm that runs later than this (phone off / asleep) is dropped, never replayed. */
+    private static final long MAX_LATE_MS = 10 * 60 * 1000L;
+
+    private void execute(Context app, int id, long due) {
         JSONObject s = ScheduleManager.find(app, id);
         if (s == null || !s.optBoolean("enabled", true)) return;
 
         boolean on = "on".equals(s.optString("action", "off"));
         String label = on ? "Manual/Bypass ON" : "Manual/Bypass OFF";
 
+        // 1. Too late? (phone was off or asleep) -> do nothing, wait for the next schedule.
+        long late = due > 0 ? System.currentTimeMillis() - due : 0;
+        if (late > MAX_LATE_MS) {
+            skip(app, on, label, "Skipped - ran " + (late / 60000L) + " min late, not applied", true);
+            return;
+        }
+
+        // 2. Power present? Main tank below the limit (for ON)?
+        BypassGuard.Result g = BypassGuard.evaluate(app, on);
+        if (!g.allowed) {
+            skip(app, on, label, "Skipped - " + g.reason, g.warn);
+            return;
+        }
+
+        // 3. Send. Do not keep retrying if the device went offline (no power).
         String err = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
             err = ControlClient.sendBypass(app, on);
-            if (err == null) break;
+            if (err == null || err.toLowerCase().contains("offline")
+                    || err.toLowerCase().contains("did not respond")) break;
             try { Thread.sleep(5000L); } catch (InterruptedException ignored) {}
         }
 
         boolean ok = err == null;
-        String msg = ok ? "Sent at " + s.optString("time") : "FAILED: " + err;
+        String msg = ok ? "Sent at " + s.optString("time") + " - " + g.reason : "FAILED: " + err;
         ScheduleManager.addLog(app, on ? "on" : "off", ok, msg);
         ScheduleManager.notifyResult(app, (ok ? "✅ " : "⚠️ ") + label, msg, ok);
         ControlClient.telegram(app, (ok ? "✅ " : "⚠️ ") + "Scheduled " + label + " - " + msg);
+    }
+
+    private static void skip(Context app, boolean on, String label, String msg, boolean warn) {
+        ScheduleManager.addLog(app, on ? "on" : "off", !warn, msg);
+        ScheduleManager.notifyResult(app, (warn ? "⚠️ " : "⏭️ ") + label, msg, !warn);
+        ControlClient.telegram(app, (warn ? "⚠️ " : "⏭️ ") + "Scheduled " + label + " - " + msg);
     }
 }

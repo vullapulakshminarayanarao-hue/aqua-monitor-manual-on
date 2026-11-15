@@ -71,7 +71,8 @@ public class Poller {
         String token = login(base, email, password);
         if (token == null) { Log.e(TAG, "Login failed"); return; }
 
-        String devId = getFirstDevice(base, token);
+        String devId = p.getString("ctl_device_id", "").trim();
+        if (devId.isEmpty()) devId = getFirstDevice(base, token);
         if (devId == null) { Log.e(TAG, "No device found"); return; }
 
         String tele = getTelemetry(base, token, devId);
@@ -183,16 +184,25 @@ public class Poller {
 
     private static String getFirstDevice(String base, String tok) {
         try {
-            for (String ep : new String[]{
-                    base + "/api/tenant/devices?pageSize=100&page=0",
-                    base + "/api/customer/devices?pageSize=100&page=0"}) {
+            java.util.List<String> eps = new java.util.ArrayList<String>();
+            // Same order the dashboard uses: customer devices first (customer logins), then tenant.
+            String u = get(base + "/api/auth/user", tok);
+            if (u != null) {
+                JSONObject cj = new JSONObject(u).optJSONObject("customerId");
+                String cid = cj == null ? "" : cj.optString("id", "");
+                if (!cid.isEmpty() && !"13814000-1dd2-11b2-8080-808080808080".equals(cid)) {
+                    eps.add(base + "/api/customer/" + cid + "/devices?pageSize=100&page=0");
+                }
+            }
+            eps.add(base + "/api/tenant/devices?pageSize=100&page=0");
+            eps.add(base + "/api/customer/devices?pageSize=100&page=0");
+            for (String ep : eps) {
                 String r = get(ep, tok);
                 if (r == null) continue;
-                int ii = r.indexOf("\"id\""); if (ii < 0) continue;
-                int oi = r.indexOf("{", ii + 4); if (oi < 0) continue;
-                int si = r.indexOf("\"id\"", oi); if (si < 0) continue;
-                int vs = r.indexOf("\"", si + 5) + 1;
-                return r.substring(vs, r.indexOf("\"", vs));
+                org.json.JSONArray d = new JSONObject(r).optJSONArray("data");
+                if (d == null || d.length() == 0) continue;
+                JSONObject id = d.getJSONObject(0).optJSONObject("id");
+                if (id != null && !id.optString("id", "").isEmpty()) return id.getString("id");
             }
         } catch (Exception e) { Log.e(TAG, "getFirstDevice", e); }
         return null;

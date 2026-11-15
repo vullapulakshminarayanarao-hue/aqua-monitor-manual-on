@@ -56,7 +56,7 @@ final class ControlClient {
                 url = host + "/api/plugins/rpc/" + ("rpc1".equals(mode) ? "oneway/" : "twoway/") + devId;
                 body.put("method", name);
                 body.put("params", val);
-                if (!"rpc1".equals(mode)) body.put("timeout", 15000);
+                body.put("timeout", 15000); // expire quickly: never replay later
             }
 
             int code = post(url, token, body.toString());
@@ -91,7 +91,7 @@ final class ControlClient {
 
     // ── helpers ───────────────────────────────────────────────
 
-    private static String login(String host, String email, String pass) throws Exception {
+    static String login(String host, String email, String pass) throws Exception {
         JSONObject b = new JSONObject();
         b.put("username", email);
         b.put("password", pass);
@@ -108,6 +108,23 @@ final class ControlClient {
             return null;
         } finally {
             c.disconnect();
+        }
+    }
+
+    /** GET returning the body, or null on any error / HTTP >= 400. */
+    static String get(String url, String token) {
+        try {
+            HttpURLConnection c = open(url);
+            c.setRequestProperty("X-Authorization", "Bearer " + token);
+            try {
+                if (c.getResponseCode() >= 400) return null;
+                return read(c.getInputStream());
+            } finally {
+                c.disconnect();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "get: " + e.getMessage());
+            return null;
         }
     }
 
