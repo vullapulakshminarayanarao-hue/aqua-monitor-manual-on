@@ -44,52 +44,57 @@ public class Poller {
 
     /** Main entry point — call from AlarmReceiver, PollJobService and the service. */
     public static void run(Context ctx) {
-        // Same store as NativeBridge / ControlClient ("aqua_prefs")
         SharedPreferences p = ctx.getSharedPreferences("aqua_prefs", Context.MODE_PRIVATE);
-        String tgToken  = p.getString("tg_token",  "");
-        String tgChatId = p.getString("tg_chatid", "");
-        if (tgToken.isEmpty() || tgChatId.isEmpty()) {
-            Log.d(TAG, "No Telegram config — skipping");
-            return;
-        }
+        String result;
+        try { result = runInner(ctx, p); }
+        catch (Exception e) { Log.e(TAG, "run", e); result = "Error: " + e.getMessage(); }
+        // The app shows this under Settings > Notifications so a silent failure is visible.
+        p.edit().putLong("bg_last_ts", System.currentTimeMillis()).putString("bg_last_msg", result).apply();
+        Log.d(TAG, "Poll complete: " + result);
+    }
 
-        String base     = p.getString("tb_host", BASE).trim();
+    private static String runInner(Context ctx, SharedPreferences p) {
+        String tgToken  = p.getString("tg_token",  "").trim();
+        String tgChatId = p.getString("tg_chatid", "").trim();
+        boolean tg = !tgToken.isEmpty() && !tgChatId.isEmpty();
+
+        String base = p.getString("tb_host", BASE).trim();
         if (base.isEmpty()) base = BASE;
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         String email    = p.getString("tb_email",    "").trim();
         String password = p.getString("tb_password", "").trim();
         if (email.isEmpty() || password.isEmpty()) {
-            Log.d(TAG, "Not logged in — open the app and connect once");
-            return;
+            return "Not signed in - open the app and sign in once";
         }
 
-        int fallback    = p.getInt("threshold", 30);
-        int sumpThr     = threshold(p, "SumpLevel", fallback);
-        int tankThr     = threshold(p, "TankLevel", fallback);
-        int coolMins    = p.getInt("cooldown_minutes", 60);
+        int fallback = p.getInt("threshold", 30);
+        int sumpThr  = threshold(p, "SumpLevel", fallback);
+        int tankThr  = threshold(p, "TankLevel", fallback);
+        int coolMins = p.getInt("cooldown_minutes", 60);
 
         String token = login(base, email, password);
-        if (token == null) { Log.e(TAG, "Login failed"); return; }
+        if (token == null) return "Sign-in to e-live.in failed - check the email and password";
 
         String devId = p.getString("ctl_device_id", "").trim();
         if (devId.isEmpty()) devId = getFirstDevice(base, token);
-        if (devId == null) { Log.e(TAG, "No device found"); return; }
+        if (devId == null) return "No device found for this account";
 
         String tele = getTelemetry(base, token, devId);
-        if (tele == null) { Log.e(TAG, "No telemetry"); return; }
-
-        Log.d(TAG, "Telemetry: " + tele.substring(0, Math.min(200, tele.length())));
+        if (tele == null) return "No data received from the device";
 
         createChannels(ctx);
-        NotificationManager nm = (NotificationManager)
-            ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        checkLevel(ctx, p, tele, nm, "sump",  "Sump",  sumpThr, coolMins, tgToken, tgChatId);
-        checkLevel(ctx, p, tele, nm, "tank",  "Tank",  tankThr, coolMins, tgToken, tgChatId);
-        checkLevel(ctx, p, tele, nm, "level", "Level", tankThr, coolMins, tgToken, tgChatId);
-        checkLevel(ctx, p, tele, nm, "water", "Water", tankThr, coolMins, tgToken, tgChatId);
-
-        Log.d(TAG, "Poll complete: " + new java.util.Date());
+        StringBuilder sb = new StringBuilder();
+        String[] parts = {
+            checkLevel(ctx, p, tele, nm, "sump",  "Sump",  sumpThr, coolMins, tgToken, tgChatId, tg),
+            checkLevel(ctx, p, tele, nm, "tank",  "Tank",  tankThr, coolMins, tgToken, tgChatId, tg),
+            checkLevel(ctx, p, tele, nm, "level", "Level", tankThr, coolMins, tgToken, tgChatId, tg),
+            checkLevel(ctx, p, tele, nm, "water", "Water", tankThr, coolMins, tgToken, tgChatId, tg)
+        };
+        for (String s : parts) if (s != null) { if (sb.length() > 0) sb.append("; "); sb.append(s); }
+        if (sb.length() == 0) return "No tank or sump level found in the device data";
+        return (tg ? "" : "Telegram not saved - phone alerts only. ") + sb;
     }
 
     /** Per-sensor threshold from the app's threshold map: sensor key, then "default", then fallback. */
@@ -102,46 +107,52 @@ public class Poller {
         return fallback;
     }
 
-    private static void checkLevel(Context ctx, SharedPreferences p, String json,
+    /** Returns a short result for the status line, or null if this key is not in the data. */
+    private static String checkLevel(Context ctx, SharedPreferences p, String json,
             NotificationManager nm, String key, String label,
-            int thresh, int coolMins, String tgTok, String tgChat) {
+            int thresh, int coolMins, String tgTok, String tgChat, boolean tg) {
         try {
-            // Find the sensor key (case-insensitive match)
             String lo = json.toLowerCase();
             int ki = lo.indexOf("\"" + key);
-            if (ki < 0) { Log.d(TAG, "Key not found: " + key); return; }
+            if (ki < 0) return null;
 
-            // Find value field near that key
             int vi = json.indexOf("\"value\"", ki);
-            if (vi < 0 || vi - ki > 500) return;
+            if (vi < 0 || vi - ki > 500) return null;
             int vs = json.indexOf("\"", vi + 8) + 1;
             int ve = json.indexOf("\"", vs);
-            if (vs <= 0 || ve <= vs) return;
+            if (vs <= 0 || ve <= vs) return null;
 
             float pct = Float.parseFloat(json.substring(vs, ve));
-            Log.d(TAG, label + " = " + pct + "% (thresh=" + thresh + "%)");
-
-            String coolKey = "alerted_" + key;
-            long   lastAlert = p.getLong(coolKey, 0);
-            long   coolMs    = (long) coolMins * 60_000L;
+            String coolKey  = "alerted_" + key;
+            long lastAlert  = p.getLong(coolKey, 0);
+            long coolMs     = (long) coolMins * 60_000L;
             boolean canAlert = (System.currentTimeMillis() - lastAlert) > coolMs;
 
-            if (pct < thresh && canAlert) {
-                String msg = "\u26a0\ufe0f " + label + " water LOW: "
-                    + (int)pct + "% (minimum " + thresh + "%)\nPlease start the motor!";
-                sendPhoneNotif(ctx, nm, label + " Level Low!", msg);
-                sendTelegram(tgTok, tgChat,
-                    "\u26a0\ufe0f WATER LEVEL ALERT\n\n"
-                    + "Sensor: " + label + "\n"
-                    + "Level: " + (int)pct + "%\n"
-                    + "Minimum: " + thresh + "%\n\n"
-                    + "Please start the motor!");
-                p.edit().putLong(coolKey, System.currentTimeMillis()).apply();
-            } else if (pct >= thresh && lastAlert > 0) {
-                // Level restored — clear alert so next drop triggers fresh alert
-                p.edit().remove(coolKey).apply();
+            if (pct >= thresh) {
+                // Level restored - the next drop alerts straight away
+                if (lastAlert > 0) p.edit().remove(coolKey).apply();
+                return label + " " + (int) pct + "% ok";
             }
-        } catch (Exception e) { Log.e(TAG, "checkLevel " + key, e); }
+            if (!canAlert) return label + " " + (int) pct + "% low (alert already sent)";
+
+            String msg = "\u26a0\ufe0f " + label + " water LOW: " + (int) pct + "% (minimum " + thresh + "%)\nPlease start the motor!";
+            sendPhoneNotif(ctx, nm, label + " Level Low!", msg);
+            boolean sent = tg && sendTelegram(tgTok, tgChat,
+                "\u26a0\ufe0f WATER LEVEL ALERT\n\n"
+                + "Sensor: " + label + "\n"
+                + "Level: " + (int) pct + "%\n"
+                + "Minimum: " + thresh + "%\n\n"
+                + "Please start the motor!");
+            // Count it as done only if it was delivered (or Telegram is not set up);
+            // otherwise try again in about 2 minutes instead of waiting a full cooldown.
+            long stamp = (sent || !tg) ? System.currentTimeMillis()
+                                       : System.currentTimeMillis() - coolMs + 2 * 60_000L;
+            p.edit().putLong(coolKey, stamp).apply();
+            return label + " " + (int) pct + "% LOW - " + (sent ? "Telegram sent" : tg ? "Telegram FAILED (will retry)" : "phone alert only");
+        } catch (Exception e) {
+            Log.e(TAG, "checkLevel " + key, e);
+            return null;
+        }
     }
 
     private static void sendPhoneNotif(Context ctx, NotificationManager nm,
@@ -173,12 +184,11 @@ public class Poller {
     // ── HTTP helpers ──────────────────────────────────────────────────────────
     private static String login(String base, String email, String pw) {
         try {
-            String body = "{\"username\":\"" + email + "\",\"password\":\"" + pw + "\"}";
-            String resp = post(base + "/api/auth/login", null, body);
+            JSONObject o = new JSONObject();
+            o.put("username", email); o.put("password", pw);
+            String resp = post(base + "/api/auth/login", null, o.toString());
             if (resp == null) return null;
-            int t = resp.indexOf("\"token\""); if (t < 0) return null;
-            int s = resp.indexOf("\"", t + 8) + 1;
-            return resp.substring(s, resp.indexOf("\"", s));
+            return new JSONObject(resp).optString("token", null);
         } catch (Exception e) { Log.e(TAG, "login", e); return null; }
     }
 
@@ -244,11 +254,12 @@ public class Poller {
         } catch (Exception e) { return null; }
     }
 
-    private static void sendTelegram(String tok, String chat, String msg) {
+    private static boolean sendTelegram(String tok, String chat, String msg) {
         try {
-            get("https://api.telegram.org/bot" + tok
+            String r = get("https://api.telegram.org/bot" + tok
                 + "/sendMessage?chat_id=" + URLEncoder.encode(chat, "UTF-8")
                 + "&text=" + URLEncoder.encode(msg, "UTF-8"), null);
-        } catch (Exception e) { Log.e(TAG, "telegram", e); }
+            return r != null && r.contains("\"ok\":true");
+        } catch (Exception e) { Log.e(TAG, "telegram", e); return false; }
     }
 }

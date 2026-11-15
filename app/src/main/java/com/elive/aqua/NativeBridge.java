@@ -22,9 +22,12 @@ public class NativeBridge {
 
     @JavascriptInterface
     public void saveServer(String host, String email, String pass) {
-        p().edit().putString("tb_host", host.trim())
-                  .putString("tb_email", email.trim())
-                  .putString("tb_password", pass.trim()).apply();
+        SharedPreferences.Editor e = p().edit()
+                  .putString("tb_host", host.trim())
+                  .putString("tb_email", email.trim());
+        // never wipe the saved password with an empty one (background checks need it)
+        if (pass != null && !pass.trim().isEmpty()) e.putString("tb_password", pass.trim());
+        e.apply();
         toast("Server saved ✓");
     }
 
@@ -50,6 +53,31 @@ public class NativeBridge {
     public void saveCooldownMinutes(int mins) {
         p().edit().putInt("cooldown_minutes", Math.max(1, Math.min(1440, mins))).apply();
         toast("Cooldown saved ✓");
+    }
+
+    /** What the background (app-closed) alert check has and what it did last. */
+    @JavascriptInterface
+    public String getBackgroundStatus() {
+        try {
+            SharedPreferences sp = p();
+            JSONObject o = new JSONObject();
+            o.put("telegram", !sp.getString("tg_token", "").trim().isEmpty() && !sp.getString("tg_chatid", "").trim().isEmpty());
+            o.put("login",    !sp.getString("tb_email", "").trim().isEmpty() && !sp.getString("tb_password", "").trim().isEmpty());
+            o.put("device",   !sp.getString("ctl_device_id", "").trim().isEmpty());
+            o.put("lastTs",   sp.getLong("bg_last_ts", 0));
+            o.put("lastMsg",  safe(sp.getString("bg_last_msg", "")));
+            o.put("threshold", sp.getInt("threshold", 30));
+            o.put("thresholdMap", safe(sp.getString("threshold_map", "{}")));
+            o.put("cooldownMins", sp.getInt("cooldown_minutes", 60));
+            return o.toString();
+        } catch (Exception e) { return "{}"; }
+    }
+
+    /** Runs the background alert check once, right now (off the UI thread). */
+    @JavascriptInterface
+    public void runBackgroundCheck() {
+        final Context app = ctx.getApplicationContext();
+        new Thread(new Runnable() { public void run() { Poller.run(app); } }).start();
     }
 
     @JavascriptInterface
