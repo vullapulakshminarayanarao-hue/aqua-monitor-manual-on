@@ -7,11 +7,14 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
 public class MonitorService extends Service {
     private static final int NOTIF_ID = 1001;
     public static volatile boolean isRunning = false;
     private LocalBinder binder;
+    private Thread loop;
+    private volatile boolean stopLoop = false;
 
     public static class LocalBinder extends Binder {
         private final MonitorService svc;
@@ -29,10 +32,29 @@ public class MonitorService extends Service {
     @Override
     public int onStartCommand(Intent i, int f, int id) {
         startForeground(NOTIF_ID, buildNotif());
-        // Schedule both mechanisms every time service starts
+        // Three independent triggers, so one being delayed never stops alerts:
+        // 1) alarm every 5 min  2) job every 15 min  3) this service's own loop every 3 min
         PollJobService.schedule(this);
         AlarmScheduler.schedule(this);
+        startLoop();
         return START_STICKY;
+    }
+
+    private void startLoop() {
+        if (loop != null && loop.isAlive()) return;
+        stopLoop = false;
+        loop = new Thread(new Runnable() {
+            @Override public void run() {
+                try { Thread.sleep(20 * 1000L); } catch (InterruptedException e) { return; }
+                while (!stopLoop) {
+                    try { Poller.run(MonitorService.this); }
+                    catch (Exception e) { Log.e("AquaService", "poll error", e); }
+                    try { Thread.sleep(3 * 60 * 1000L); } catch (InterruptedException e) { return; }
+                }
+            }
+        }, "tw-poll");
+        loop.setDaemon(true);
+        loop.start();
     }
 
     @Override public IBinder onBind(Intent i) { return binder; }
@@ -47,17 +69,23 @@ public class MonitorService extends Service {
 
     @Override public void onDestroy() {
         isRunning = false;
+        stopLoop = true;
+        if (loop != null) loop.interrupt();
         AlarmScheduler.schedule(this);
         restartSelf();
         super.onDestroy();
     }
 
     private void restartSelf() {
-        Intent i = new Intent(this, MonitorService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            startForegroundService(i);
-        else
-            startService(i);
+        // Android 12+ may refuse to start a foreground service from the background.
+        // That must never crash us: the alarm and job above keep checking anyway.
+        try {
+            Intent i = new Intent(this, MonitorService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i);
+            else startService(i);
+        } catch (Exception e) {
+            Log.w("AquaService", "restart not allowed: " + e.getMessage());
+        }
     }
 
     private Notification buildNotif() {

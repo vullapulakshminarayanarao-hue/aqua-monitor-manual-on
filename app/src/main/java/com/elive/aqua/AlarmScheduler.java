@@ -10,21 +10,28 @@ import android.util.Log;
 public class AlarmScheduler {
     private static final long INTERVAL_MS = 5 * 60 * 1000L; // 5 minutes
 
+    /** Arms the next background check. Always uses a "works while the phone is idle" alarm. */
     public static void schedule(Context ctx) {
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         PendingIntent pi = getPendingIntent(ctx);
         long at = System.currentTimeMillis() + INTERVAL_MS;
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                // Exact alarms not allowed: still use the idle-friendly (not exact) kind
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                Log.d("AquaAlarm", "Scheduled (idle-friendly, not exact)");
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                Log.d("AquaAlarm", "Scheduled exact in 5 min");
             } else {
                 am.setExact(AlarmManager.RTC_WAKEUP, at, pi);
             }
-            Log.d("AquaAlarm", "Scheduled in 5 min");
         } catch (SecurityException e) {
-            // No SCHEDULE_EXACT_ALARM permission — use inexact
-            am.set(AlarmManager.RTC_WAKEUP, at, pi);
-            Log.d("AquaAlarm", "Scheduled inexact (no exact alarm permission)");
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                else am.set(AlarmManager.RTC_WAKEUP, at, pi);
+                Log.d("AquaAlarm", "Scheduled (fallback)");
+            } catch (Exception e2) { Log.e("AquaAlarm", "could not schedule", e2); }
         }
     }
 

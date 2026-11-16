@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.util.Log;
 
@@ -16,6 +18,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import org.json.JSONObject;
 
 public class Poller {
@@ -42,15 +47,24 @@ public class Poller {
         }
     }
 
-    /** Main entry point — call from AlarmReceiver, PollJobService and the service. */
-    public static void run(Context ctx) {
-        SharedPreferences p = ctx.getSharedPreferences("aqua_prefs", Context.MODE_PRIVATE);
-        String result;
-        try { result = runInner(ctx, p); }
-        catch (Exception e) { Log.e(TAG, "run", e); result = "Error: " + e.getMessage(); }
-        // The app shows this under Settings > Notifications so a silent failure is visible.
-        p.edit().putLong("bg_last_ts", System.currentTimeMillis()).putString("bg_last_msg", result).apply();
-        Log.d(TAG, "Poll complete: " + result);
+    private static final Object LOCK = new Object();
+
+    /** Main entry point - call from AlarmReceiver, PollJobService and the service. */
+    public static void run(Context ctx) { run(ctx, false); }
+
+    /** force = true skips the "just ran a moment ago" guard (used by "Check now"). */
+    public static void run(Context ctx, boolean force) {
+        synchronized (LOCK) {
+            SharedPreferences p = ctx.getSharedPreferences("aqua_prefs", Context.MODE_PRIVATE);
+            // Three triggers (alarm, job, service loop) may fire close together - run once.
+            if (!force && System.currentTimeMillis() - p.getLong("bg_last_ts", 0) < 25_000L) return;
+            String result;
+            try { result = runInner(ctx, p); }
+            catch (Exception e) { Log.e(TAG, "run", e); result = "Error: " + e.getMessage(); }
+            // Shown under Settings > Notifications so a silent failure is visible.
+            p.edit().putLong("bg_last_ts", System.currentTimeMillis()).putString("bg_last_msg", result).apply();
+            Log.d(TAG, "Poll complete: " + result);
+        }
     }
 
     private static String runInner(Context ctx, SharedPreferences p) {
@@ -66,25 +80,63 @@ public class Poller {
         if (email.isEmpty() || password.isEmpty()) {
             return "Not signed in - open the app and sign in once";
         }
+        if (!online(ctx)) return "No internet on the phone right now";
 
         int fallback = p.getInt("threshold", 30);
         int sumpThr  = threshold(p, "SumpLevel", fallback);
         int tankThr  = threshold(p, "TankLevel", fallback);
         int coolMins = p.getInt("cooldown_minutes", 60);
 
-        String token = login(base, email, password);
-        if (token == null) return "Sign-in to e-live.in failed - check the email and password";
+        String token = authToken(p, base, email, password, false);
+        if (token == null) return "Sign-in to e-live.in failed - check the email and password, or the internet";
 
         String devId = p.getString("ctl_device_id", "").trim();
-        if (devId.isEmpty()) devId = getFirstDevice(base, token);
-        if (devId == null) return "No device found for this account";
+        if (devId.isEmpty()) devId = p.getString("bg_device_id", "").trim();
+        if (devId.isEmpty()) {
+            String first = getFirstDevice(base, token);
+            if (first != null) { devId = first; p.edit().putString("bg_device_id", first).apply(); }
+        }
+        if (devId.isEmpty()) return "No device found for this account";
 
         String tele = getTelemetry(base, token, devId);
-        if (tele == null) return "No data received from the device";
+        if (tele == null) {                       // the saved sign-in may have expired: once more, fresh
+            token = authToken(p, base, email, password, true);
+            if (token == null) return "Sign-in to e-live.in failed - check the email and password, or the internet";
+            tele = getTelemetry(base, token, devId);
+        }
+        if (tele == null) return "No data received (e-live.in did not answer)";
 
         createChannels(ctx);
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
 
+        // ---- power cut / back online ----
+        long now      = System.currentTimeMillis();
+        long newest   = newestTs(tele);
+        long staleMs  = Math.max(1, p.getInt("power_stale_minutes", 10)) * 60_000L;
+        long offSince = p.getLong("bg_offline_since", 0);
+        if (newest > 0 && now - newest > staleMs) {
+            long mins = (now - newest) / 60000L;
+            if (offSince == 0) {
+                String text = "No data from the device for " + mins + " min.\nLast data: " + fmtTime(newest)
+                    + "\nPossible power cut, or no internet at the site.";
+                boolean sent = alertBoth(ctx, nm, 2002, "Device offline", text,
+                    "\u26a0\ufe0f POWER CUT / DEVICE OFFLINE", tgToken, tgChatId, tg);
+                if (sent || !tg) p.edit().putLong("bg_offline_since", newest).apply();
+            }
+            // old readings must not trigger level alerts
+            return "Device offline - no data for " + mins + " min (last data " + fmtTime(newest) + ")";
+        }
+        String restored = "";
+        if (offSince > 0 && newest > 0) {
+            long down = Math.max(0, (newest - offSince) / 60000L);
+            String text = "The device is sending data again.\nIt was offline for about " + down + " min (since " + fmtTime(offSince) + ").";
+            boolean sent = alertBoth(ctx, nm, 2003, "Power restored", text,
+                "\u2705 POWER RESTORED", tgToken, tgChatId, tg);
+            if (sent || !tg) p.edit().remove("bg_offline_since").apply();
+            restored = "Back online. ";
+        }
+
+        // ---- water levels ----
         StringBuilder sb = new StringBuilder();
         String[] parts = {
             checkLevel(ctx, p, tele, nm, "sump",  "Sump",  sumpThr, coolMins, tgToken, tgChatId, tg),
@@ -93,8 +145,72 @@ public class Poller {
             checkLevel(ctx, p, tele, nm, "water", "Water", tankThr, coolMins, tgToken, tgChatId, tg)
         };
         for (String s : parts) if (s != null) { if (sb.length() > 0) sb.append("; "); sb.append(s); }
-        if (sb.length() == 0) return "No tank or sump level found in the device data";
-        return (tg ? "" : "Telegram not saved - phone alerts only. ") + sb;
+        if (sb.length() == 0) return restored + "No tank or sump level found in the device data";
+        return restored + (tg ? "" : "Telegram not saved - phone alerts only. ") + sb;
+    }
+
+    // ---- helpers for the checks above ----
+
+    private static boolean online(Context ctx) {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo ni = cm == null ? null : cm.getActiveNetworkInfo();
+            return ni != null && ni.isConnected();
+        } catch (Exception e) { return true; }   // if unsure, just try
+    }
+
+    /** Reuses the saved sign-in token until shortly before it expires (one request fewer per check). */
+    private static String authToken(SharedPreferences p, String base, String email, String pw, boolean fresh) {
+        long now = System.currentTimeMillis();
+        String key = base + "|" + email;
+        String tok = p.getString("bg_token", "");
+        if (!fresh && !tok.isEmpty() && key.equals(p.getString("bg_token_for", ""))
+                && p.getLong("bg_token_exp", 0) > now + 120_000L) {
+            return tok;
+        }
+        tok = login(base, email, pw);
+        if (tok != null) {
+            p.edit().putString("bg_token", tok).putLong("bg_token_exp", jwtExpiryMs(tok, now))
+                    .putString("bg_token_for", key).apply();
+        }
+        return tok;
+    }
+
+    private static long jwtExpiryMs(String jwt, long now) {
+        try {
+            String[] parts = jwt.split("\\.");
+            byte[] b = android.util.Base64.decode(parts[1],
+                android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+            long exp = new JSONObject(new String(b, "UTF-8")).optLong("exp", 0);
+            if (exp > 0) return exp * 1000L;
+        } catch (Exception ignored) {}
+        return now + 30 * 60_000L;
+    }
+
+    /** Timestamp of the newest reading of any sensor, or 0. */
+    private static long newestTs(String tele) {
+        long newest = 0;
+        try {
+            JSONObject o = new JSONObject(tele);
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                org.json.JSONArray a = o.optJSONArray(it.next());
+                if (a != null && a.length() > 0) newest = Math.max(newest, a.getJSONObject(0).optLong("ts", 0));
+            }
+        } catch (Exception ignored) {}
+        return newest;
+    }
+
+    static String fmtTime(long ms) {
+        return new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(new Date(ms));
+    }
+
+    /** Phone notification + Telegram. Returns true only if the Telegram message was delivered. */
+    private static boolean alertBoth(Context ctx, NotificationManager nm, int id, String title, String text,
+                                     String tgHeader, String tgTok, String tgChat, boolean tg) {
+        sendPhoneNotif(ctx, nm, id, title, text);
+        return tg && sendTelegram(tgTok, tgChat,
+            tgHeader + "\n\n" + text + "\nTime: " + fmtTime(System.currentTimeMillis()));
     }
 
     /** Per-sensor threshold from the app's threshold map: sensor key, then "default", then fallback. */
@@ -136,12 +252,13 @@ public class Poller {
             if (!canAlert) return label + " " + (int) pct + "% low (alert already sent)";
 
             String msg = "\u26a0\ufe0f " + label + " water LOW: " + (int) pct + "% (minimum " + thresh + "%)\nPlease start the motor!";
-            sendPhoneNotif(ctx, nm, label + " Level Low!", msg);
+            sendPhoneNotif(ctx, nm, 2001, label + " Level Low!", msg);
             boolean sent = tg && sendTelegram(tgTok, tgChat,
                 "\u26a0\ufe0f WATER LEVEL ALERT\n\n"
                 + "Sensor: " + label + "\n"
                 + "Level: " + (int) pct + "%\n"
-                + "Minimum: " + thresh + "%\n\n"
+                + "Minimum: " + thresh + "%\n"
+                + "Time: " + fmtTime(System.currentTimeMillis()) + "\n\n"
                 + "Please start the motor!");
             // Count it as done only if it was delivered (or Telegram is not set up);
             // otherwise try again in about 2 minutes instead of waiting a full cooldown.
@@ -155,7 +272,7 @@ public class Poller {
         }
     }
 
-    private static void sendPhoneNotif(Context ctx, NotificationManager nm,
+    private static void sendPhoneNotif(Context ctx, NotificationManager nm, int id,
                                        String title, String text) {
         Intent tap = new Intent(ctx, MainActivity.class);
         tap.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -178,7 +295,7 @@ public class Poller {
                 .setContentIntent(pi).setAutoCancel(true)
                 .setVibrate(new long[]{0,500,200,500}).build();
         }
-        nm.notify(2001, n);
+        nm.notify(id, n);
     }
 
     // ── HTTP helpers ──────────────────────────────────────────────────────────
@@ -225,7 +342,7 @@ public class Poller {
     static String get(String url, String tok) {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(15000); c.setReadTimeout(15000);
+            c.setConnectTimeout(10000); c.setReadTimeout(10000);
             if (tok != null) c.setRequestProperty("X-Authorization", "Bearer " + tok);
             if (c.getResponseCode() >= 400) return null;
             BufferedReader br = new BufferedReader(
@@ -240,7 +357,7 @@ public class Poller {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
             c.setRequestMethod("POST");
-            c.setConnectTimeout(15000); c.setReadTimeout(15000);
+            c.setConnectTimeout(10000); c.setReadTimeout(10000);
             c.setRequestProperty("Content-Type", "application/json");
             if (tok != null) c.setRequestProperty("X-Authorization", "Bearer " + tok);
             c.setDoOutput(true);

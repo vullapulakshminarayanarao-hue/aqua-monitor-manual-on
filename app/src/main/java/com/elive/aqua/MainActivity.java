@@ -45,6 +45,12 @@ public class MainActivity extends Activity {
             }
         }
 
+        // Android 13+: phone notifications need a runtime permission
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 77);
+        }
+
         // Start service + schedule alarm
         Intent si = new Intent(this, MonitorService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)

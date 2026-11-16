@@ -73,11 +73,74 @@ public class NativeBridge {
         } catch (Exception e) { return "{}"; }
     }
 
+    /** What Android currently allows this app to do in the background. */
+    @JavascriptInterface
+    public String getReliability() {
+        try {
+            JSONObject o = new JSONObject();
+            boolean battery = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.os.PowerManager pm = (android.os.PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+                battery = pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+            }
+            boolean exact = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                android.app.AlarmManager am = (android.app.AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                exact = am != null && am.canScheduleExactAlarms();
+            }
+            boolean notif = true;
+            if (Build.VERSION.SDK_INT >= 24) {
+                android.app.NotificationManager nm = (android.app.NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                notif = nm != null && nm.areNotificationsEnabled();
+            }
+            o.put("battery", battery);
+            o.put("exact", exact);
+            o.put("notifications", notif);
+            o.put("manufacturer", safe(Build.MANUFACTURER));
+            o.put("sdk", Build.VERSION.SDK_INT);
+            return o.toString();
+        } catch (Exception e) { return "{}"; }
+    }
+
+    /** Asks Android to stop restricting this app's battery use (needed for alerts when the app is closed). */
+    @JavascriptInterface
+    public void requestBatteryUnrestricted() {
+        try {
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+        } catch (Exception e) {
+            try {
+                Intent i = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(i);
+            } catch (Exception ignored) { openAppSettings(); }
+        }
+    }
+
+    @JavascriptInterface
+    public void openNotificationSettings() {
+        try {
+            Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.getPackageName());
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+        } catch (Exception e) { openAppSettings(); }
+    }
+
+    @JavascriptInterface
+    public void openAppSettings() {
+        try {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+        } catch (Exception ignored) {}
+    }
+
     /** Runs the background alert check once, right now (off the UI thread). */
     @JavascriptInterface
     public void runBackgroundCheck() {
         final Context app = ctx.getApplicationContext();
-        new Thread(new Runnable() { public void run() { Poller.run(app); } }).start();
+        new Thread(new Runnable() { public void run() { Poller.run(app, true); } }).start();
     }
 
     @JavascriptInterface
