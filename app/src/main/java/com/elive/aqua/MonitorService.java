@@ -1,8 +1,10 @@
 package com.elive.aqua;
 
 import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.Build;
@@ -10,7 +12,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 public class MonitorService extends Service {
-    private static final int NOTIF_ID = 1001;
+    public static final int NOTIF_ID = 1001;
     public static volatile boolean isRunning = false;
     private LocalBinder binder;
     private Thread loop;
@@ -89,21 +91,38 @@ public class MonitorService extends Service {
     }
 
     private Notification buildNotif() {
-        Intent tap = new Intent(this, MainActivity.class);
-        PendingIntent pi = PendingIntent.getActivity(this, 0, tap,
+        String text = getSharedPreferences("aqua_prefs", MODE_PRIVATE).getString("live_text", "Monitoring water levels");
+        return buildNotification(this, text, "");
+    }
+
+    /** The always-on status notification: shows the latest levels and motor state. */
+    static Notification buildNotification(Context ctx, String text, String sub) {
+        Intent tap = new Intent(ctx, MainActivity.class);
+        PendingIntent pi = PendingIntent.getActivity(ctx, 0, tap,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder b;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return new Notification.Builder(this, Poller.CH_SVC)
-                .setContentTitle("Trust Water Controller")
-                .setContentText("Monitoring water levels")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentIntent(pi).setOngoing(true).build();
+            b = new Notification.Builder(ctx, Poller.CH_SVC);
+        } else {
+            b = new Notification.Builder(ctx).setPriority(Notification.PRIORITY_MIN);
         }
-        return new Notification.Builder(this)
-            .setContentTitle("Trust Water Controller")
-            .setContentText("Monitoring water levels")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setPriority(Notification.PRIORITY_MIN)
-            .setContentIntent(pi).setOngoing(true).build();
+        b.setContentTitle("Trust Water Controller")
+         .setContentText(text)
+         .setSmallIcon(android.R.drawable.ic_dialog_info)
+         .setContentIntent(pi)
+         .setOngoing(true)
+         .setOnlyAlertOnce(true)
+         .setShowWhen(false);
+        if (sub != null && sub.length() > 0) b.setSubText(sub);
+        return b.build();
+    }
+
+    /** Refreshes the status notification with the latest readings (only while the service is running). */
+    static void updateNotification(Context ctx, String text, String sub) {
+        if (!isRunning) return;
+        try {
+            NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            nm.notify(NOTIF_ID, buildNotification(ctx, text, sub));
+        } catch (Exception e) { Log.w("AquaService", "notif update: " + e.getMessage()); }
     }
 }

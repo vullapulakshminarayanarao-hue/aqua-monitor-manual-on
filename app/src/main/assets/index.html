@@ -853,8 +853,8 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
 [data-level="ok"] .tchip,[data-level="low"] .tchip{display:inline-block;}
 [data-level="ok"] .tchip{background:var(--g2);}
 [data-level="low"] .tchip{background:var(--danger);}
-[data-level="ok"] .tchip::after{content:"OK";}
-[data-level="low"] .tchip::after{content:"LOW";}
+[data-level="ok"] .tchip::after{content:var(--t-ok,"OK");}
+[data-level="low"] .tchip::after{content:var(--t-low,"LOW");}
 [data-level="ok"] .t-water{background:linear-gradient(180deg,#4ade80,#16a34a)!important;}
 [data-level="low"] .t-water{background:linear-gradient(180deg,#f87171,#dc2626)!important;}
 [data-level="ok"] .pbar-fill{background:#22c55e!important;}
@@ -897,6 +897,46 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
 
 .tiles.stale>.card{opacity:.55;filter:grayscale(.45);transition:opacity .4s;}
 
+/* v4: offline, history, languages, daily summary */
+@media(max-width:430px){#home-refresh{width:42px;padding:0;}#home-refresh span{display:none;}}
+.data-strip.noconn{background:rgba(217,119,6,.13);color:var(--warn);font-weight:700;}
+.tiles.stale{opacity:.62;}
+.langs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;}
+#set-langs{justify-content:flex-start;margin-top:10px;}
+.lang-chip{border:1px solid var(--border2);background:var(--panel);color:var(--text);border-radius:999px;padding:8px 14px;font-weight:700;font-size:.9rem;cursor:pointer;}
+.lang-chip.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+.hist-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:10px;}
+.range-row{display:flex;gap:8px;margin-bottom:8px;}
+.chip{border:1px solid var(--border2);background:var(--panel2);color:var(--text);border-radius:999px;padding:7px 14px;font-weight:700;font-size:.85rem;cursor:pointer;}
+.chip.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand);}
+.hist-sub{font-size:.8rem;color:var(--text2);margin-bottom:4px;}
+.hist-msg{font-size:.86rem;color:var(--text2);padding:8px 0;}
+.hist-chart svg{display:block;}
+.hg{stroke:var(--border);stroke-width:1;}
+.h50{stroke:var(--warn);stroke-dasharray:4 4;stroke-width:1.4;}
+.hl{fill:var(--text2);font-size:10px;}
+.hline{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;}
+.hline.main{stroke:var(--brand);}
+.hline.sump{stroke:#0ea5e9;}
+.hgap{fill:rgba(209,41,61,.13);}
+.hlane{fill:var(--bg2);}
+.hon{fill:var(--g2);}
+.hcur{stroke:var(--text2);stroke-width:1;stroke-dasharray:3 3;}
+.hist-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--text2);margin:6px 0;}
+.hist-legend i{display:inline-block;width:12px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+.hist-readout{font-size:.84rem;font-weight:600;background:var(--bg2);border-radius:10px;padding:8px 10px;min-height:2.4em;}
+.hist-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 12px;}
+.stat-h{font-size:.74rem;font-weight:800;text-transform:uppercase;color:var(--text2);margin-bottom:6px;}
+.stat-row{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;padding:3px 0;}
+.stat-row b{font-variant-numeric:tabular-nums;text-align:right;}
+.sum-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;}
+.sum-row input[type=time]{height:40px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);padding:0 10px;font-size:1rem;}
+.sum-actions{display:flex;gap:8px;margin-top:8px;}
+.sum-msg{font-size:.84rem;color:var(--text2);margin-top:8px;min-height:1.2em;word-break:break-word;}
+
+.tiles.noconn #bypass-card{pointer-events:none;}
+
 </style>
 <script>try{var _t=localStorage.getItem("tw_theme");if(_t)document.documentElement.dataset.theme=_t;}catch(e){}</script>
 </head>
@@ -921,6 +961,7 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
       <button class="btn-connect" id="lbtn" onclick="doLogin()">CONNECT</button>
       <div class="err-msg" id="lerr"></div>
       <div id="login-hint" class="login-sub" style="margin-top:12px;font-size:.8rem;">Sign in once — the app remembers your login on this phone.</div>
+      <div class="langs" id="login-langs"></div>
     </div>
   </div>
 
@@ -948,6 +989,7 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
             <select id="devsel" onchange="onDevChange()" aria-label="Select device"></select>
             <button class="pill-btn" id="home-refresh" type="button" onclick="homeRefresh()" aria-label="Refresh now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span>Refresh</span></button>
             <button class="pill-btn" id="home-alerts" type="button" onclick="toggleNotif()" aria-label="Alerts on or off" title="Alerts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="bell-on"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="bell-off"><path d="M13.7 21a2 2 0 0 1-3.4 0"/><path d="M18.6 13A17 17 0 0 1 18 8a6 6 0 0 0-9.3-5"/><path d="M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M1 1l22 22"/></svg></button>
+            <button class="pill-btn" id="home-history" type="button" onclick="openHistory()" aria-label="History" title="History"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></button>
           </div>
           <div class="data-strip" id="data-strip">Waiting for data…</div>
           <div class="tiles">
@@ -1011,6 +1053,12 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
           <button class="icon-btn" type="button" onclick="closeSettings()" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
           <h2>Settings</h2>
         </div>
+<details class="sx" id="sec-lang">
+  <summary><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg></span><span class="st">Language<span class="ss">Choose the app language</span></span></summary>
+  <div class="sx-body">
+<div class="langs" id="set-langs"></div><p class="mini" style="margin-top:10px;">Labels on the home screen and main settings are translated. Detailed settings stay in English.</p>
+  </div>
+</details>
 <details class="sx" id="sec-schedule">
   <summary><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span><span class="st">Schedules<span class="ss">Manual / Bypass ON and OFF times</span></span></summary>
   <div class="sx-body">
@@ -1200,6 +1248,19 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
       </div>
   </div>
 </details>
+<details class="sx" id="sec-sum">
+  <summary><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span class="st">Daily summary<span class="ss">A Telegram message once a day</span></span></summary>
+  <div class="sx-body">
+<div class="card" style="margin-top:10px;">
+      <div class="clabel">Daily summary</div>
+      <p class="mini" style="margin-bottom:6px;">A Telegram message once a day with tank levels, motor run time and any power cuts.</p>
+      <div class="sum-row"><span>Send every day</span><label class="sw"><input type="checkbox" id="sum-on"><span></span></label></div>
+      <div class="sum-row"><span>Time</span><input type="time" id="sum-time" value="20:00"></div>
+      <div class="sum-actions"><button class="btn-save" type="button" onclick="saveSummaryUI()">Save</button><button class="btn-test" type="button" onclick="sendSummaryNowUI()">Send now</button></div>
+      <div class="sum-msg" id="sum-msg"></div>
+    </div>
+  </div>
+</details>
 <details class="sx" id="sec-prot">
   <summary><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="st">Protection &amp; current<span class="ss">Dry run, flow and motor current</span></span></summary>
   <div class="sx-body">
@@ -1367,6 +1428,31 @@ body{background:var(--bg);color:var(--text);font-size:16px;line-height:1.4;}
 </details>
       </div>
 
+
+      <div id="view-history" hidden>
+        <div class="sethead">
+          <button class="icon-btn" type="button" onclick="closeSettings()" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <h2>History</h2>
+        </div>
+        <div class="hist-card">
+          <div class="range-row" id="hist-ranges" role="group">
+            <button class="chip on" type="button" data-r="6" aria-pressed="true">6 h</button>
+            <button class="chip" type="button" data-r="24" aria-pressed="false">24 h</button>
+            <button class="chip" type="button" data-r="168" aria-pressed="false">7 days</button>
+          </div>
+          <div class="hist-sub" id="hist-sub"></div>
+          <div class="hist-msg" id="hist-msg" hidden></div>
+          <div class="hist-chart" id="hist-chart"></div>
+          <div class="hist-legend">
+            <span><i style="background:var(--brand)"></i>Main tank</span>
+            <span><i style="background:#0ea5e9"></i>Sump</span>
+            <span><i style="background:var(--g2)"></i>Motor ON</span>
+            <span><i style="background:rgba(209,41,61,.35)"></i>No data</span>
+          </div>
+          <div class="hist-readout" id="hist-readout">Touch the chart to see values</div>
+        </div>
+        <div class="hist-stats" id="hist-stats"></div>
+      </div>
     </div><!-- /mgrid -->
   </div><!-- /dash -->
 
@@ -1521,6 +1607,7 @@ async function doLogin(){
     });
 
     token = result.token;
+    window.__cachedMode=false; window.__fetchFailed=false;
 
     // Save to Android service
     if(window.NativeApp){
@@ -1540,6 +1627,7 @@ async function doLogin(){
     err.textContent = '✗ '+e.message;
     setStat('error');
     log('Login error: '+e.message,'err');
+    if(/Network error|Timeout/i.test(e.message)){ try{ if(window.enterOfflineMode && enterOfflineMode()){ setStat('error'); const _ls=document.getElementById('lstatus'); if(_ls) _ls.textContent='OFFLINE'; } }catch(x){} }
   }
   btn.disabled=false; btn.textContent='CONNECT';
 }
@@ -1587,6 +1675,7 @@ async function discoverDevs(){
     document.getElementById('devsel').innerHTML=devs.map(d=>`<option value="${d.id.id}">${d.name}</option>`).join('');
     const dcEl=document.getElementById('dev-count'); if(dcEl) dcEl.textContent=devs.length;
     devId=devs[0].id.id;
+    try{ const _sv=localStorage.getItem('tw_dev'); if(_sv && devs.some(function(d){return d.id.id===_sv;})){ devId=_sv; document.getElementById('devsel').value=_sv; } }catch(e){}
     await fetchTele();
   }catch(e){
     log('Fatal: '+e.message,'err');
@@ -1600,7 +1689,7 @@ async function discoverDevs(){
   }
 }
 
-function onDevChange(){devId=document.getElementById('devsel').value;fetchTele();}
+function onDevChange(){devId=document.getElementById('devsel').value;try{localStorage.setItem('tw_dev',devId);}catch(e){}fetchTele();}
 
 function setLoad(m){
   setEl('loadmsg','style.display','block');
@@ -1632,6 +1721,8 @@ async function fetchTele(){
     const rcEl=document.getElementById('refresh-count'); if(rcEl) rcEl.textContent=refreshCt+' refresh'+(refreshCt!==1?'es':'');
     const kcEl=document.getElementById('key-count'); if(kcEl) kcEl.textContent=keys.length;
     render(data);
+    window.__fetchFailed=false; window.__keys=keys;
+    try{ localStorage.setItem('tw_cache',JSON.stringify({devId:devId,at:Date.now(),data:data,devs:allDevs.map(function(d){return {id:d.id.id,name:d.name};})})); }catch(e){}
     loadAlarms();
     document.getElementById('loadmsg').style.display='none';
     document.getElementById('mgrid').style.display='block';
@@ -1670,6 +1761,7 @@ async function fetchTele(){
     }
   }catch(e){
     log('Tele error: '+e.message,'err');
+    window.__fetchFailed=true;
     document.getElementById('loadmsg').style.display='none';
     document.getElementById('mgrid').style.display='block';
     setStat('error');
@@ -2532,15 +2624,144 @@ window.onload=()=>{
 
 <script>
 // ══════════════════════════════════════════════
+//  LANGUAGE (English · ಕನ್ನಡ · हिन्दी · తెలుగు)
+// ══════════════════════════════════════════════
+(function(){
+  const D = {"Sign in with your e-live.in account": {"hi": "अपने e-live.in खाते से साइन इन करें", "kn": "ನಿಮ್ಮ e-live.in ಖಾತೆಯಿಂದ ಸೈನ್ ಇನ್ ಮಾಡಿ", "te": "మీ e-live.in ఖాతాతో సైన్ ఇన్ చేయండి"}, "Email": {"hi": "ईमेल", "kn": "ಇಮೇಲ್", "te": "ఇమెయిల్"}, "Password": {"hi": "पासवर्ड", "kn": "ಪಾಸ್‌ವರ್ಡ್", "te": "పాస్‌వర్డ్"}, "CONNECT": {"hi": "कनेक्ट करें", "kn": "ಸಂಪರ್ಕಿಸಿ", "te": "కనెక్ట్ చేయండి"}, "CONNECTING...": {"hi": "कनेक्ट हो रहा है...", "kn": "ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ...", "te": "కనెక్ట్ అవుతోంది..."}, "Sign in once — the app remembers your login on this phone.": {"hi": "एक बार साइन इन करें — ऐप इस फ़ोन पर आपका लॉगिन याद रखेगा।", "kn": "ಒಮ್ಮೆ ಸೈನ್ ಇನ್ ಮಾಡಿ — ಈ ಫೋನ್‌ನಲ್ಲಿ ಅಪ್ಲಿಕೇಶನ್ ನಿಮ್ಮ ಲಾಗಿನ್ ನೆನಪಿಟ್ಟುಕೊಳ್ಳುತ್ತದೆ.", "te": "ఒకసారి సైన్ ఇన్ చేయండి — ఈ ఫోన్‌లో యాప్ మీ లాగిన్‌ను గుర్తుంచుకుంటుంది."}, "Auto-connecting to e-live.in…": {"hi": "e-live.in से अपने-आप कनेक्ट हो रहा है…", "kn": "e-live.in ಗೆ ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಸಂಪರ್ಕಿಸಲಾಗುತ್ತಿದೆ…", "te": "e-live.in కి ఆటోమేటిక్‌గా కనెక్ట్ అవుతోంది…"}, "LIVE": {"hi": "लाइव", "kn": "ಲೈವ್", "te": "లైవ్"}, "OFFLINE": {"hi": "ऑफ़लाइन", "kn": "ಆಫ್‌ಲೈನ್", "te": "ఆఫ్‌లైన్"}, "ERROR": {"hi": "त्रुटि", "kn": "ದೋಷ", "te": "లోపం"}, "⚠️ Set up Telegram alerts so they work when the app is closed ›": {"hi": "⚠️ टेलीग्राम अलर्ट सेट करें ताकि ऐप बंद होने पर भी काम करें ›", "kn": "⚠️ ಟೆಲಿಗ್ರಾಮ್ ಎಚ್ಚರಿಕೆಗಳನ್ನು ಹೊಂದಿಸಿ, ಆಗ ಅಪ್ಲಿಕೇಶನ್ ಮುಚ್ಚಿದ್ದರೂ ಕೆಲಸ ಮಾಡುತ್ತವೆ ›", "te": "⚠️ టెలిగ్రామ్ అలర్ట్‌లను సెట్ చేయండి, యాప్ మూసివేసినా పని చేస్తాయి ›"}, "Main Tank": {"hi": "मुख्य टंकी", "kn": "ಮುಖ್ಯ ಟ್ಯಾಂಕ್", "te": "ప్రధాన ట్యాంక్"}, "Sump Tank": {"hi": "सम्प टंकी", "kn": "ಸಂಪ್ ಟ್ಯಾಂಕ್", "te": "సంప్ ట్యాంక్"}, "Motor / Pump": {"hi": "मोटर / पंप", "kn": "ಮೋಟಾರ್ / ಪಂಪ್", "te": "మోటార్ / పంప్"}, "Manual / Bypass": {"hi": "मैनुअल / बाईपास", "kn": "ಮ್ಯಾನುಯಲ್ / ಬೈಪಾಸ್", "te": "మాన్యువల్ / బైపాస్"}, "Overhead tank level": {"hi": "ऊपरी टंकी का स्तर", "kn": "ಓವರ್‌ಹೆಡ್ ಟ್ಯಾಂಕ್ ಮಟ್ಟ", "te": "ఓవర్‌హెడ్ ట్యాంక్ స్థాయి"}, "Sump level": {"hi": "सम्प का स्तर", "kn": "ಸಂಪ್ ಮಟ್ಟ", "te": "సంప్ స్థాయి"}, "RUNNING": {"hi": "चालू", "kn": "ಚಾಲನೆಯಲ್ಲಿದೆ", "te": "నడుస్తోంది"}, "STOPPED": {"hi": "बंद", "kn": "ನಿಂತಿದೆ", "te": "ఆగింది"}, "ACTIVE": {"hi": "सक्रिय", "kn": "ಸಕ್ರಿಯ", "te": "క్రియాశీలం"}, "IDLE": {"hi": "निष्क्रिय", "kn": "ನಿಷ್ಕ್ರಿಯ", "te": "నిష్క్రియం"}, "Running for": {"hi": "चलने का समय", "kn": "ಚಾಲನೆಯ ಅವಧಿ", "te": "నడిచిన సమయం"}, "Last update": {"hi": "अंतिम अपडेट", "kn": "ಕೊನೆಯ ನವೀಕರಣ", "te": "చివరి అప్‌డేట్"}, "Device state": {"hi": "डिवाइस की स्थिति", "kn": "ಸಾಧನದ ಸ್ಥಿತಿ", "te": "పరికర స్థితి"}, "Manual": {"hi": "मैनुअल", "kn": "ಮ್ಯಾನುಯಲ್", "te": "మాన్యువల్"}, "Reset": {"hi": "रीसेट", "kn": "ಮರುಹೊಂದಿಸಿ", "te": "రీసెట్"}, "Schedules ›": {"hi": "समय-सारणी ›", "kn": "ವೇಳಾಪಟ್ಟಿ ›", "te": "షెడ్యూళ్లు ›"}, "Refresh": {"hi": "रिफ़्रेश", "kn": "ರಿಫ್ರೆಶ್", "te": "రిఫ్రెష్"}, "Ready": {"hi": "तैयार", "kn": "ಸಿದ್ಧ", "te": "సిద్ధం"}, "ON": {"hi": "चालू", "kn": "ಆನ್", "te": "ఆన్"}, "OFF": {"hi": "बंद", "kn": "ಆಫ್", "te": "ఆఫ్"}, "Waiting for data…": {"hi": "डेटा की प्रतीक्षा…", "kn": "ಡೇಟಾಗಾಗಿ ಕಾಯಲಾಗುತ್ತಿದೆ…", "te": "డేటా కోసం వేచి ఉంది…"}, "Loading your system…": {"hi": "आपका सिस्टम लोड हो रहा है…", "kn": "ನಿಮ್ಮ ಸಿಸ್ಟಮ್ ಲೋಡ್ ಆಗುತ್ತಿದೆ…", "te": "మీ సిస్టమ్ లోడ్ అవుతోంది…"}, "Select device": {"hi": "डिवाइस चुनें", "kn": "ಸಾಧನ ಆಯ್ಕೆಮಾಡಿ", "te": "పరికరాన్ని ఎంచుకోండి"}, "Refresh now": {"hi": "अभी रिफ़्रेश करें", "kn": "ಈಗ ರಿಫ್ರೆಶ್ ಮಾಡಿ", "te": "ఇప్పుడు రిఫ్రెష్ చేయండి"}, "Alerts on or off": {"hi": "अलर्ट चालू या बंद", "kn": "ಎಚ್ಚರಿಕೆ ಆನ್ ಅಥವಾ ಆಫ್", "te": "అలర్ట్ ఆన్ లేదా ఆఫ్"}, "Alerts are ON": {"hi": "अलर्ट चालू हैं", "kn": "ಎಚ್ಚರಿಕೆಗಳು ಆನ್ ಆಗಿವೆ", "te": "అలర్ట్‌లు ఆన్‌లో ఉన్నాయి"}, "Alerts are OFF": {"hi": "अलर्ट बंद हैं", "kn": "ಎಚ್ಚರಿಕೆಗಳು ಆಫ್ ಆಗಿವೆ", "te": "అలర్ట్‌లు ఆఫ్‌లో ఉన్నాయి"}, "History": {"hi": "इतिहास", "kn": "ಇತಿಹಾಸ", "te": "చరిత్ర"}, "Back": {"hi": "वापस", "kn": "ಹಿಂದೆ", "te": "వెనుకకు"}, "Settings": {"hi": "सेटिंग्स", "kn": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು", "te": "సెట్టింగ్‌లు"}, "Schedules": {"hi": "समय-सारणी", "kn": "ವೇಳಾಪಟ್ಟಿಗಳು", "te": "షెడ్యూళ్లు"}, "Manual / Bypass ON and OFF times": {"hi": "मैनुअल / बाईपास चालू और बंद करने का समय", "kn": "ಮ್ಯಾನುಯಲ್ / ಬೈಪಾಸ್ ಆನ್ ಮತ್ತು ಆಫ್ ಸಮಯ", "te": "మాన్యువల్ / బైపాస్ ఆన్ మరియు ఆఫ్ సమయాలు"}, "Alert levels & water quality": {"hi": "अलर्ट स्तर और पानी की गुणवत्ता", "kn": "ಎಚ್ಚರಿಕೆ ಮಟ್ಟಗಳು ಮತ್ತು ನೀರಿನ ಗುಣಮಟ್ಟ", "te": "అలర్ట్ స్థాయిలు మరియు నీటి నాణ్యత"}, "Low / high thresholds, cooldown, TDS": {"hi": "कम / ज़्यादा सीमा, अंतराल, टीडीएस", "kn": "ಕಡಿಮೆ / ಹೆಚ್ಚು ಮಿತಿಗಳು, ಅಂತರ, ಟಿಡಿಎಸ್", "te": "తక్కువ / ఎక్కువ పరిమితులు, విరామం, టీడీఎస్"}, "Notifications": {"hi": "सूचनाएँ", "kn": "ಅಧಿಸೂಚನೆಗಳು", "te": "నోటిఫికేషన్లు"}, "Telegram and email alerts": {"hi": "टेलीग्राम और ईमेल अलर्ट", "kn": "ಟೆಲಿಗ್ರಾಮ್ ಮತ್ತು ಇಮೇಲ್ ಎಚ್ಚರಿಕೆಗಳು", "te": "టెలిగ్రామ్ మరియు ఇమెయిల్ అలర్ట్‌లు"}, "Protection & current": {"hi": "सुरक्षा और करंट", "kn": "ರಕ್ಷಣೆ ಮತ್ತು ಕರೆಂಟ್", "te": "రక్షణ మరియు కరెంట్"}, "Dry run, flow and motor current": {"hi": "ड्राई रन, प्रवाह और मोटर करंट", "kn": "ಡ್ರೈ ರನ್, ಹರಿವು ಮತ್ತು ಮೋಟಾರ್ ಕರೆಂಟ್", "te": "డ్రై రన్, ప్రవాహం మరియు మోటార్ కరెంట్"}, "Sensors & environment": {"hi": "सेंसर और वातावरण", "kn": "ಸೆನ್ಸರ್‌ಗಳು ಮತ್ತು ಪರಿಸರ", "te": "సెన్సర్లు మరియు పరిసరాలు"}, "Power, connection, flow, temperature, pressure": {"hi": "बिजली, कनेक्शन, प्रवाह, तापमान, दबाव", "kn": "ವಿದ್ಯುತ್, ಸಂಪರ್ಕ, ಹರಿವು, ತಾಪಮಾನ, ಒತ್ತಡ", "te": "విద్యుత్, కనెక్షన్, ప్రవాహం, ఉష్ణోగ్రత, ఒత్తిడి"}, "Alarm list": {"hi": "अलार्म सूची", "kn": "ಅಲಾರ್ಮ್ ಪಟ್ಟಿ", "te": "అలారం జాబితా"}, "Alarms reported by the device": {"hi": "डिवाइस द्वारा भेजे गए अलार्म", "kn": "ಸಾಧನ ವರದಿ ಮಾಡಿದ ಅಲಾರ್ಮ್‌ಗಳು", "te": "పరికరం నివేదించిన అలారాలు"}, "Command settings": {"hi": "कमांड सेटिंग्स", "kn": "ಕಮಾಂಡ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳು", "te": "కమాండ్ సెట్టింగ్‌లు"}, "How the app talks to your device": {"hi": "ऐप आपके डिवाइस से कैसे बात करता है", "kn": "ಅಪ್ಲಿಕೇಶನ್ ನಿಮ್ಮ ಸಾಧನದೊಂದಿಗೆ ಹೇಗೆ ಸಂವಹನ ಮಾಡುತ್ತದೆ", "te": "యాప్ మీ పరికరంతో ఎలా మాట్లాడుతుంది"}, "Diagnostics": {"hi": "डायग्नोस्टिक्स", "kn": "ಡಯಾಗ್ನೋಸ್ಟಿಕ್ಸ್", "te": "డయాగ్నోస్టిక్స్"}, "Device selection, raw readings and log": {"hi": "डिवाइस चयन, कच्ची रीडिंग और लॉग", "kn": "ಸಾಧನ ಆಯ್ಕೆ, ರಾ ರೀಡಿಂಗ್‌ಗಳು ಮತ್ತು ಲಾಗ್", "te": "పరికర ఎంపిక, రా రీడింగ్‌లు మరియు లాగ్"}, "Switch device from the home screen": {"hi": "डिवाइस होम स्क्रीन से बदलें", "kn": "ಸಾಧನವನ್ನು ಮುಖಪುಟದಿಂದ ಬದಲಿಸಿ", "te": "పరికరాన్ని హోమ్ స్క్రీన్ నుండి మార్చండి"}, "Appearance": {"hi": "रूप-रंग", "kn": "ಗೋಚರತೆ", "te": "రూపం"}, "Light or dark display": {"hi": "लाइट या डार्क डिस्प्ले", "kn": "ಲೈಟ್ ಅಥವಾ ಡಾರ್ಕ್ ಡಿಸ್‌ಪ್ಲೇ", "te": "లైట్ లేదా డార్క్ డిస్‌ప్లే"}, "Display mode": {"hi": "डिस्प्ले मोड", "kn": "ಡಿಸ್‌ಪ್ಲೇ ಮೋಡ್", "te": "డిస్‌ప్లే మోడ్"}, "☀️ DAY": {"hi": "☀️ दिन", "kn": "☀️ ಹಗಲು", "te": "☀️ పగలు"}, "🌙 NIGHT": {"hi": "🌙 रात", "kn": "🌙 ರಾತ್ರಿ", "te": "🌙 రాత్రి"}, "About": {"hi": "जानकारी", "kn": "ಬಗ್ಗೆ", "te": "గురించి"}, "Right brand of automatic water level controller": {"hi": "ऑटोमैटिक वॉटर लेवल कंट्रोलर का सही ब्रांड", "kn": "ಸ್ವಯಂಚಾಲಿತ ನೀರಿನ ಮಟ್ಟ ನಿಯಂತ್ರಕದ ಸರಿಯಾದ ಬ್ರ್ಯಾಂಡ್", "te": "ఆటోమేటిక్ వాటర్ లెవెల్ కంట్రోలర్‌కు సరైన బ్రాండ్"}, "Language": {"hi": "भाषा", "kn": "ಭಾಷೆ", "te": "భాష"}, "Choose the app language": {"hi": "ऐप की भाषा चुनें", "kn": "ಅಪ್ಲಿಕೇಶನ್ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ", "te": "యాప్ భాషను ఎంచుకోండి"}, "Labels on the home screen and main settings are translated. Detailed settings stay in English.": {"hi": "होम स्क्रीन और मुख्य सेटिंग्स के लेबल अनुवादित हैं। विस्तृत सेटिंग्स अंग्रेज़ी में रहेंगी।", "kn": "ಮುಖಪುಟ ಮತ್ತು ಮುಖ್ಯ ಸೆಟ್ಟಿಂಗ್‌ಗಳ ಲೇಬಲ್‌ಗಳನ್ನು ಅನುವಾದಿಸಲಾಗಿದೆ. ವಿವರವಾದ ಸೆಟ್ಟಿಂಗ್‌ಗಳು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿಯೇ ಇರುತ್ತವೆ.", "te": "హోమ్ స్క్రీన్ మరియు ప్రధాన సెట్టింగ్‌ల లేబుల్‌లు అనువదించబడ్డాయి. వివరణాత్మక సెట్టింగ్‌లు ఇంగ్లీష్‌లోనే ఉంటాయి."}, "Daily summary": {"hi": "दैनिक सारांश", "kn": "ದೈನಂದಿನ ಸಾರಾಂಶ", "te": "రోజువారీ సారాంశం"}, "A Telegram message once a day": {"hi": "दिन में एक बार टेलीग्राम संदेश", "kn": "ದಿನಕ್ಕೊಮ್ಮೆ ಟೆಲಿಗ್ರಾಮ್ ಸಂದೇಶ", "te": "రోజుకు ఒకసారి టెలిగ్రామ్ సందేశం"}, "A Telegram message once a day with tank levels, motor run time and any power cuts.": {"hi": "दिन में एक बार टेलीग्राम संदेश: टंकी का स्तर, मोटर चलने का समय और बिजली कटौती।", "kn": "ದಿನಕ್ಕೊಮ್ಮೆ ಟೆಲಿಗ್ರಾಮ್ ಸಂದೇಶ: ಟ್ಯಾಂಕ್ ಮಟ್ಟ, ಮೋಟಾರ್ ಚಾಲನೆಯ ಸಮಯ ಮತ್ತು ವಿದ್ಯುತ್ ಕಡಿತ.", "te": "రోజుకు ఒకసారి టెలిగ్రామ్ సందేశం: ట్యాంక్ స్థాయి, మోటార్ నడిచిన సమయం మరియు కరెంట్ కోతలు."}, "Send every day": {"hi": "हर दिन भेजें", "kn": "ಪ್ರತಿದಿನ ಕಳುಹಿಸಿ", "te": "ప్రతిరోజూ పంపండి"}, "Time": {"hi": "समय", "kn": "ಸಮಯ", "te": "సమయం"}, "Save": {"hi": "सहेजें", "kn": "ಉಳಿಸಿ", "te": "సేవ్ చేయండి"}, "Send now": {"hi": "अभी भेजें", "kn": "ಈಗ ಕಳುಹಿಸಿ", "te": "ఇప్పుడు పంపండి"}, "Sending…": {"hi": "भेजा जा रहा है…", "kn": "ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ…", "te": "పంపుతోంది…"}, "Saved": {"hi": "सहेजा गया", "kn": "ಉಳಿಸಲಾಗಿದೆ", "te": "సేవ్ చేయబడింది"}, "Daily summaries are sent by the Android app.": {"hi": "दैनिक सारांश एंड्रॉइड ऐप से भेजे जाते हैं।", "kn": "ದೈನಂದಿನ ಸಾರಾಂಶಗಳನ್ನು ಆಂಡ್ರಾಯ್ಡ್ ಅಪ್ಲಿಕೇಶನ್ ಕಳುಹಿಸುತ್ತದೆ.", "te": "రోజువారీ సారాంశాలను ఆండ్రాయిడ్ యాప్ పంపుతుంది."}, "Alerts when the app is closed": {"hi": "ऐप बंद होने पर अलर्ट", "kn": "ಅಪ್ಲಿಕೇಶನ್ ಮುಚ್ಚಿದಾಗ ಎಚ್ಚರಿಕೆಗಳು", "te": "యాప్ మూసివేసినప్పుడు అలర్ట్‌లు"}, "Checking…": {"hi": "जाँच हो रही है…", "kn": "ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…", "te": "తనిఖీ చేస్తోంది…"}, "Check now": {"hi": "अभी जाँचें", "kn": "ಈಗ ಪರಿಶೀಲಿಸಿ", "te": "ఇప్పుడు తనిఖీ చేయండి"}, "Telegram saved on this phone": {"hi": "इस फ़ोन पर टेलीग्राम सहेजा गया", "kn": "ಈ ಫೋನ್‌ನಲ್ಲಿ ಟೆಲಿಗ್ರಾಮ್ ಉಳಿಸಲಾಗಿದೆ", "te": "ఈ ఫోన్‌లో టెలిగ్రామ్ సేవ్ చేయబడింది"}, "Yes": {"hi": "हाँ", "kn": "ಹೌದು", "te": "అవును"}, "No - tap Save in Telegram": {"hi": "नहीं - टेलीग्राम में सहेजें दबाएँ", "kn": "ಇಲ್ಲ - ಟೆಲಿಗ್ರಾಮ್‌ನಲ್ಲಿ ಉಳಿಸಿ ಒತ್ತಿ", "te": "లేదు - టెలిగ్రామ్‌లో సేవ్ నొక్కండి"}, "e-live login saved": {"hi": "e-live लॉगिन सहेजा गया", "kn": "e-live ಲಾಗಿನ್ ಉಳಿಸಲಾಗಿದೆ", "te": "e-live లాగిన్ సేవ్ చేయబడింది"}, "No - sign in once": {"hi": "नहीं - एक बार साइन इन करें", "kn": "ಇಲ್ಲ - ಒಮ್ಮೆ ಸೈನ್ ಇನ್ ಮಾಡಿ", "te": "లేదు - ఒకసారి సైన్ ఇన్ చేయండి"}, "Device selected": {"hi": "डिवाइस चुना गया", "kn": "ಸಾಧನ ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ", "te": "పరికరం ఎంచుకోబడింది"}, "Not yet": {"hi": "अभी नहीं", "kn": "ಇನ್ನೂ ಇಲ್ಲ", "te": "ఇంకా లేదు"}, "Last background check": {"hi": "अंतिम बैकग्राउंड जाँच", "kn": "ಕೊನೆಯ ಹಿನ್ನೆಲೆ ಪರಿಶೀಲನೆ", "te": "చివరి బ్యాక్‌గ్రౌండ్ తనిఖీ"}, "Not run yet": {"hi": "अभी तक नहीं चली", "kn": "ಇನ್ನೂ ಚಲಾಯಿಸಿಲ್ಲ", "te": "ఇంకా అమలు కాలేదు"}, "just now": {"hi": "अभी-अभी", "kn": "ಈಗಷ್ಟೇ", "te": "ఇప్పుడే"}, "Battery limits": {"hi": "बैटरी सीमाएँ", "kn": "ಬ್ಯಾಟರಿ ಮಿತಿಗಳು", "te": "బ్యాటరీ పరిమితులు"}, "Unrestricted": {"hi": "बिना रोक", "kn": "ನಿರ್ಬಂಧವಿಲ್ಲ", "te": "పరిమితి లేదు"}, "Restricted": {"hi": "सीमित", "kn": "ನಿರ್ಬಂಧಿತ", "te": "పరిమితం"}, "Allow": {"hi": "अनुमति दें", "kn": "ಅನುಮತಿಸಿ", "te": "అనుమతించండి"}, "Exact alarms": {"hi": "सटीक अलार्म", "kn": "ನಿಖರ ಅಲಾರ್ಮ್‌ಗಳು", "te": "ఖచ్చితమైన అలారాలు"}, "Allowed": {"hi": "अनुमत", "kn": "ಅನುಮತಿಸಲಾಗಿದೆ", "te": "అనుమతించబడింది"}, "Not allowed": {"hi": "अनुमत नहीं", "kn": "ಅನುಮತಿ ಇಲ್ಲ", "te": "అనుమతి లేదు"}, "Open": {"hi": "खोलें", "kn": "ತೆರೆಯಿರಿ", "te": "తెరవండి"}, "Phone notifications": {"hi": "फ़ोन सूचनाएँ", "kn": "ಫೋನ್ ಅಧಿಸೂಚನೆಗಳು", "te": "ఫోన్ నోటిఫికేషన్లు"}, "Blocked": {"hi": "बंद", "kn": "ನಿರ್ಬಂಧಿಸಲಾಗಿದೆ", "te": "బ్లాక్ చేయబడింది"}, "Background alerts run inside the Android app.": {"hi": "बैकग्राउंड अलर्ट एंड्रॉइड ऐप में चलते हैं।", "kn": "ಹಿನ್ನೆಲೆ ಎಚ್ಚರಿಕೆಗಳು ಆಂಡ್ರಾಯ್ಡ್ ಅಪ್ಲಿಕೇಶನ್‌ನಲ್ಲಿ ಕೆಲಸ ಮಾಡುತ್ತವೆ.", "te": "బ్యాక్‌గ్రౌండ్ అలర్ట్‌లు ఆండ్రాయిడ్ యాప్‌లో పని చేస్తాయి."}, "6 h": {"hi": "6 घंटे", "kn": "6 ಗಂ", "te": "6 గం"}, "24 h": {"hi": "24 घंटे", "kn": "24 ಗಂ", "te": "24 గం"}, "7 days": {"hi": "7 दिन", "kn": "7 ದಿನ", "te": "7 రోజులు"}, "Main tank": {"hi": "मुख्य टंकी", "kn": "ಮುಖ್ಯ ಟ್ಯಾಂಕ್", "te": "ప్రధాన ట్యాంక్"}, "Sump": {"hi": "सम्प", "kn": "ಸಂಪ್", "te": "సంప్"}, "Motor ON": {"hi": "मोटर चालू", "kn": "ಮೋಟಾರ್ ಆನ್", "te": "మోటార్ ఆన్"}, "No data": {"hi": "डेटा नहीं", "kn": "ಡೇಟಾ ಇಲ್ಲ", "te": "డేటా లేదు"}, "Touch the chart to see values": {"hi": "मान देखने के लिए चार्ट को छुएँ", "kn": "ಮೌಲ್ಯಗಳನ್ನು ನೋಡಲು ಚಾರ್ಟ್ ಅನ್ನು ಸ್ಪರ್ಶಿಸಿ", "te": "విలువలు చూడటానికి చార్ట్‌ను తాకండి"}, "Loading history…": {"hi": "इतिहास लोड हो रहा है…", "kn": "ಇತಿಹಾಸ ಲೋಡ್ ಆಗುತ್ತಿದೆ…", "te": "చరిత్ర లోడ్ అవుతోంది…"}, "Could not load history": {"hi": "इतिहास लोड नहीं हो सका", "kn": "ಇತಿಹಾಸವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ", "te": "చరిత్రను లోడ్ చేయలేకపోయాం"}, "Low": {"hi": "न्यूनतम", "kn": "ಕನಿಷ್ಠ", "te": "కనిష్ఠం"}, "Average": {"hi": "औसत", "kn": "ಸರಾಸರಿ", "te": "సగటు"}, "High": {"hi": "अधिकतम", "kn": "ಗರಿಷ್ಠ", "te": "గరిష్ఠం"}, "Motor": {"hi": "मोटर", "kn": "ಮೋಟಾರ್", "te": "మోటార్"}, "Ran for": {"hi": "चला", "kn": "ಚಾಲನೆಯಲ್ಲಿತ್ತು", "te": "నడిచింది"}, "Starts": {"hi": "शुरू हुई", "kn": "ಪ್ರಾರಂಭಗಳು", "te": "ప్రారంభాలు"}, "Longest run": {"hi": "सबसे लंबा रन", "kn": "ಅತಿ ಉದ್ದ ಚಾಲನೆ", "te": "అతి పొడవైన రన్"}, "Power / data": {"hi": "बिजली / डेटा", "kn": "ವಿದ್ಯುತ್ / ಡೇಟಾ", "te": "విద్యుత్ / డేటా"}, "Gaps": {"hi": "अंतराल", "kn": "ಅಂತರಗಳು", "te": "గ్యాప్‌లు"}, "Longest gap": {"hi": "सबसे लंबा अंतराल", "kn": "ಅತಿ ಉದ್ದ ಅಂತರ", "te": "అతి పొడవైన గ్యాప్"}, "No gaps": {"hi": "कोई अंतराल नहीं", "kn": "ಅಂತರಗಳಿಲ್ಲ", "te": "గ్యాప్‌లు లేవు"}, "Motor data not found": {"hi": "मोटर का डेटा नहीं मिला", "kn": "ಮೋಟಾರ್ ಡೇಟಾ ಸಿಗಲಿಲ್ಲ", "te": "మోటార్ డేటా కనుగొనబడలేదు"}, "Tank": {"hi": "टंकी", "kn": "ಟ್ಯಾಂಕ್", "te": "ట్యాంక్"}};
+  const TPL = {"strip_live": {"en": "Last data {t} · {ago} ago", "hi": "अंतिम डेटा {t} · {ago} पहले", "kn": "ಕೊನೆಯ ಡೇಟಾ {t} · {ago} ಹಿಂದೆ", "te": "చివరి డేటా {t} · {ago} క్రితం"}, "strip_offline": {"en": "Device offline: no data for {n} min (power cut?). Last data {t}", "hi": "डिवाइस ऑफ़लाइन: {n} मिनट से कोई डेटा नहीं (बिजली गई?)। अंतिम डेटा {t}", "kn": "ಸಾಧನ ಆಫ್‌ಲೈನ್: {n} ನಿಮಿಷಗಳಿಂದ ಡೇಟಾ ಇಲ್ಲ (ವಿದ್ಯುತ್ ಕಡಿತ?). ಕೊನೆಯ ಡೇಟಾ {t}", "te": "పరికరం ఆఫ్‌లైన్: {n} నిమిషాలుగా డేటా లేదు (కరెంట్ కోత?). చివరి డేటా {t}"}, "strip_nonet": {"en": "No internet. Showing the last known values from {t}", "hi": "इंटरनेट नहीं है। {t} के अंतिम ज्ञात मान दिखाए जा रहे हैं", "kn": "ಇಂಟರ್ನೆಟ್ ಇಲ್ಲ. {t} ರ ಕೊನೆಯ ತಿಳಿದ ಮೌಲ್ಯಗಳನ್ನು ತೋರಿಸಲಾಗುತ್ತಿದೆ", "te": "ఇంటర్నెట్ లేదు. {t} నాటి చివరి తెలిసిన విలువలు చూపిస్తోంది"}, "ago_s": {"en": "{n} s", "hi": "{n} सेकंड", "kn": "{n} ಸೆ", "te": "{n} సె"}, "ago_min": {"en": "{n} min", "hi": "{n} मिनट", "kn": "{n} ನಿಮಿಷ", "te": "{n} నిమిషాలు"}, "bg_ago": {"en": "{n} min ago", "hi": "{n} मिनट पहले", "kn": "{n} ನಿಮಿಷಗಳ ಹಿಂದೆ", "te": "{n} నిమిషాల క్రితం"}, "bg_notrun": {"en": " - not running", "hi": " - नहीं चल रहा", "kn": " - ಚಾಲನೆಯಲ್ಲಿಲ್ಲ", "te": " - నడవడం లేదు"}, "dur_m": {"en": "{m} min", "hi": "{m} मिनट", "kn": "{m} ನಿಮಿಷ", "te": "{m} నిమిషాలు"}, "dur_h": {"en": "{h} h", "hi": "{h} घंटे", "kn": "{h} ಗಂಟೆ", "te": "{h} గంటలు"}, "dur_hm": {"en": "{h} h {m} min", "hi": "{h} घंटे {m} मिनट", "kn": "{h} ಗಂ {m} ನಿ", "te": "{h} గం {m} ని"}, "gaps_val": {"en": "{n} ({d} in total)", "hi": "{n} (कुल {d})", "kn": "{n} (ಒಟ್ಟು {d})", "te": "{n} (మొత్తం {d})"}, "hist_readout": {"en": "{t} · Main {m} · Sump {s} · Motor {mo}", "hi": "{t} · मुख्य {m} · सम्प {s} · मोटर {mo}", "kn": "{t} · ಮುಖ್ಯ {m} · ಸಂಪ್ {s} · ಮೋಟಾರ್ {mo}", "te": "{t} · ప్రధాన {m} · సంప్ {s} · మోటార్ {mo}"}, "hist_err": {"en": "Could not load history: {e}", "hi": "इतिहास लोड नहीं हो सका: {e}", "kn": "ಇತಿಹಾಸವನ್ನು ಲೋಡ್ ಮಾಡಲಾಗಲಿಲ್ಲ: {e}", "te": "చరిత్రను లోడ్ చేయలేకపోయాం: {e}"}, "sum_saved": {"en": "Saved. Daily summary at {t}", "hi": "सहेजा गया। दैनिक सारांश {t} पर", "kn": "ಉಳಿಸಲಾಗಿದೆ. ದೈನಂದಿನ ಸಾರಾಂಶ {t} ಕ್ಕೆ", "te": "సేవ్ చేయబడింది. రోజువారీ సారాంశం {t} కి"}, "sum_off": {"en": "Saved. Daily summary is off", "hi": "सहेजा गया। दैनिक सारांश बंद है", "kn": "ಉಳಿಸಲಾಗಿದೆ. ದೈನಂದಿನ ಸಾರಾಂಶ ಆಫ್ ಆಗಿದೆ", "te": "సేవ్ చేయబడింది. రోజువారీ సారాంశం ఆఫ్‌లో ఉంది"}};
+  const LANGS = [['en','English'],['kn','ಕನ್ನಡ'],['hi','हिन्दी'],['te','తెలుగు']];
+  let lang = 'en';
+  try { lang = localStorage.getItem('tw_lang') || 'en'; } catch(e) {}
+  if (!LANGS.some(function(l){ return l[0] === lang; })) lang = 'en';
+
+  const orig = new WeakMap();    // text node -> English text it came from
+  const wrote = new WeakMap();   // text node -> translated text we put there
+  const SKIP = {SCRIPT:1,STYLE:1,TEXTAREA:1,OPTION:1,SELECT:1,PRE:1,CODE:1,INPUT:1};
+  const PARTS = [[/\bACTIVE\b/,'ACTIVE'],[/\bIDLE\b/,'IDLE'],[/\bMotor:/,'Motor']];
+
+  function norm(s){ return s.replace(/\s+/g,' ').trim(); }
+  function look(key){ const e = D[key]; return e ? e[lang] : null; }
+
+  function fixNode(n){
+    const p = n.parentNode;
+    if (!p || SKIP[p.nodeName] || (p.closest && p.closest('.logbox'))) return;
+    const raw = n.nodeValue;
+    let src;
+    if (wrote.has(n) && wrote.get(n) === raw) src = orig.get(n);
+    else { src = raw; orig.set(n, raw); wrote.delete(n); }
+    let out = null;
+    if (lang !== 'en') {
+      const key = norm(src), t = look(key);
+      if (t) out = src.match(/^\s*/)[0] + t + src.match(/\s*$/)[0];
+      else {
+        let s2 = src, changed = false;
+        PARTS.forEach(function(pr){
+          if (pr[0].test(s2)) { const tr = look(pr[1]); if (tr) { s2 = s2.replace(pr[0], tr + (pr[1] === 'Motor' ? ':' : '')); changed = true; } }
+        });
+        if (changed) out = s2;
+      }
+    }
+    if (out !== null) { if (n.nodeValue !== out) n.nodeValue = out; wrote.set(n, out); }
+    else if (wrote.has(n)) { n.nodeValue = orig.get(n); wrote.delete(n); }
+  }
+  function walk(root){
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n; while ((n = w.nextNode())) fixNode(n);
+  }
+  const ATTRS = ['placeholder','aria-label','title'];
+  function attrs(root){
+    if (!root.querySelectorAll) return;
+    root.querySelectorAll('[placeholder],[aria-label],[title]').forEach(function(el){
+      ATTRS.forEach(function(a){
+        if (!el.hasAttribute(a)) return;
+        const k = 'data-o-' + a;
+        if (!el.hasAttribute(k)) el.setAttribute(k, el.getAttribute(a));
+        const src = el.getAttribute(k), t = lang === 'en' ? null : look(norm(src));
+        el.setAttribute(a, t || src);
+      });
+    });
+  }
+  function cssVars(){
+    const r = document.documentElement.style;
+    r.setProperty('--t-ok',  '"' + window.tt('OK') + '"');
+    r.setProperty('--t-low', '"' + window.tt('LOW') + '"');
+  }
+  function chips(){
+    ['login-langs','set-langs'].forEach(function(id){
+      const box = document.getElementById(id); if (!box) return;
+      if (!box.children.length) {
+        LANGS.forEach(function(l){
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'lang-chip'; b.setAttribute('data-l', l[0]); b.textContent = l[1];
+          b.setAttribute('lang', l[0]);
+          b.onclick = function(){ window.setLang(l[0]); };
+          box.appendChild(b);
+        });
+      }
+      box.querySelectorAll('.lang-chip').forEach(function(b){
+        const on = b.getAttribute('data-l') === lang;
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+  }
+
+  // fixed English words used by CSS badges (OK / LOW): see --t-ok, --t-low
+  D['OK']  = D['OK']  || {hi:'ठीक', kn:'ಸರಿ', te:'సరే'};
+  D['LOW'] = D['LOW'] || {hi:'कम',  kn:'ಕಡಿಮೆ', te:'తక్కువ'};
+
+  window.tt = function(en){ const e = D[en]; return (lang !== 'en' && e && e[lang]) || en; };
+  window.T = function(id, v){
+    const e = TPL[id]; let s = (e && (e[lang] || e.en)) || id;
+    if (v) Object.keys(v).forEach(function(k){ s = s.split('{' + k + '}').join(v[k]); });
+    return s;
+  };
+  window.getLang = function(){ return lang; };
+
+  const mo = new MutationObserver(function(ms){
+    mo.disconnect();
+    try {
+      ms.forEach(function(m){
+        if (m.type === 'characterData') fixNode(m.target);
+        else m.addedNodes.forEach(function(a){
+          if (a.nodeType === 3) fixNode(a);
+          else if (a.nodeType === 1) { walk(a); attrs(a); }
+        });
+      });
+    } finally { mo.observe(document.body, {childList:true, subtree:true, characterData:true}); }
+  });
+
+  window.setLang = function(code){
+    if (!LANGS.some(function(l){ return l[0] === code; })) return;
+    lang = code;
+    try { localStorage.setItem('tw_lang', code); } catch(e) {}
+    document.documentElement.lang = code;
+    mo.disconnect();
+    walk(document.body); attrs(document.body); cssVars(); chips();
+    mo.observe(document.body, {childList:true, subtree:true, characterData:true});
+    // redraw things the page builds itself
+    ['tick','refreshBgStatus','redrawHistory','loadSummaryUI'].forEach(function(f){ try { if (typeof window[f] === 'function') window[f](); } catch(e) {} });
+    try { if (typeof devId !== 'undefined' && devId && typeof token !== 'undefined' && token) fetchTele(); } catch(e) {}
+  };
+
+  chips(); cssVars();
+  document.documentElement.lang = lang;
+  walk(document.body); attrs(document.body);
+  mo.observe(document.body, {childList:true, subtree:true, characterData:true});
+})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════
 //  NAVIGATION · SETTINGS · HOME HELPERS
 // ══════════════════════════════════════════════
 (function(){
   const $=id=>document.getElementById(id);
   function applyView(){
-    const s=location.hash==='#settings';
-    const h=$('view-home'), v=$('view-settings');
-    if(h) h.hidden=s; if(v) v.hidden=!s;
+    const s=location.hash==='#settings', hh=location.hash==='#history';
+    const h=$('view-home'), v=$('view-settings'), hv=$('view-history');
+    if(h) h.hidden=s||hh; if(v) v.hidden=!s; if(hv) hv.hidden=!hh;
     window.scrollTo(0,0);
+    if(hh && window.loadHistory) window.loadHistory();
   }
   window.openSettings=function(secId){
     if(location.hash!=='#settings') location.hash='settings'; else applyView();
@@ -2550,7 +2771,7 @@ window.onload=()=>{
     }
   };
   window.closeSettings=function(){
-    if(location.hash==='#settings') history.back(); else applyView();
+    if(location.hash==='#settings' || location.hash==='#history') history.back(); else applyView();
   };
   window.addEventListener('hashchange',applyView);
   applyView();
@@ -2568,16 +2789,19 @@ window.onload=()=>{
     });
     const fd=$('frame-date');
     if(fd) fd.textContent=new Date().toLocaleDateString([], {weekday:'short',day:'numeric',month:'short',year:'numeric'});
-    const st=$('data-strip'), ts=window.__lastDataTs;
+    const st=$('data-strip'), ts=window.__lastDataTs, tl=document.querySelector('.tiles');
     if(st){
+      let cls='', txt;
       if(ts){
-        const age=Math.max(0,Math.round((Date.now()-ts)/1000)), mins=Math.floor(age/60), stale=age>600;
-        st.classList.toggle('stale',stale);
-        const tl=document.querySelector('.tiles'); if(tl) tl.classList.toggle('stale',stale);
-        st.textContent=stale
-          ? 'Device offline - no data for '+mins+' min (power cut?) · last data '+window.fmtStamp(ts)
-          : 'Last data '+window.fmtStamp(ts)+' · '+(age<90?age+' s':mins+' min')+' ago';
-      } else { st.classList.remove('stale'); st.textContent='Waiting for data…'; const tl=document.querySelector('.tiles'); if(tl) tl.classList.remove('stale'); }
+        const age=Math.max(0,Math.round((Date.now()-ts)/1000)), mins=Math.floor(age/60);
+        const ago=age<90?T('ago_s',{n:age}):T('ago_min',{n:mins});
+        if(window.__fetchFailed){ cls='noconn'; txt=T('strip_nonet',{t:fmtStamp(ts)}); }
+        else if(age>600){ cls='stale'; txt=T('strip_offline',{n:mins,t:fmtStamp(ts)}); }
+        else txt=T('strip_live',{t:fmtStamp(ts),ago:ago});
+      } else { txt=tt('Waiting for data…'); }
+      st.classList.toggle('stale',cls==='stale'); st.classList.toggle('noconn',cls==='noconn');
+      if(st.textContent!==txt) st.textContent=txt;
+      if(tl){ tl.classList.toggle('stale',cls!==''); tl.classList.toggle('noconn',cls==='noconn'); }
     }
     const bell=$('home-alerts');
     if(bell){ let on=true; try{ on=!!notifEnabled; }catch(e){} bell.classList.toggle('on',on); bell.title=on?'Alerts are ON':'Alerts are OFF'; bell.setAttribute('aria-pressed',on?'true':'false'); }
@@ -2622,7 +2846,7 @@ window.onload=()=>{
     box.appendChild(bgLine('e-live login saved', !!s.login, s.login?'Yes':'No - sign in once'));
     box.appendChild(bgLine('Device selected', !!s.device, s.device?'Yes':'Not yet'));
     let when='Not run yet', ok=false;
-    if(s.lastTs){ const m=Math.max(0,Math.round((Date.now()-s.lastTs)/60000)); ok=m<=15; when=(m<1?'just now':m+' min ago')+(ok?'':' - not running'); }
+    if(s.lastTs){ const m=Math.max(0,Math.round((Date.now()-s.lastTs)/60000)); ok=m<=15; when=(m<1?tt('just now'):T('bg_ago',{n:m}))+(ok?'':T('bg_notrun')); }
     box.appendChild(bgLine('Last check', ok, when));
     if(s.lastMsg){ const m=document.createElement('div'); m.className='bg-msg'; m.textContent=s.lastMsg; box.appendChild(m); }
     let r={}; try{ if(NativeApp.getReliability) r=JSON.parse(NativeApp.getReliability()); }catch(e){}
@@ -2646,6 +2870,291 @@ window.onload=()=>{
   const nd=$('sec-notify'); if(nd) nd.addEventListener('toggle',function(){ if(nd.open) window.refreshBgStatus(); });
   setInterval(function(){ const n=$('sec-notify'); if(n&&n.open&&!$('view-settings').hidden) window.refreshBgStatus(); },15000);
 })();
+</script>
+<script>
+// ══════════════════════════════════════════════
+//  LAST KNOWN VALUES · HISTORY · DAILY SUMMARY
+// ══════════════════════════════════════════════
+(function(){
+  const $ = function(id){ return document.getElementById(id); };
+
+  // ───────── 1) no internet: show the last known readings ─────────
+  window.enterOfflineMode = function(){
+    let c = null;
+    try { c = JSON.parse(localStorage.getItem('tw_cache') || 'null'); } catch(e) {}
+    if (!c || !c.data) return false;
+    if (window.__cachedMode) return true;
+    $('login-sec').style.display = 'none';
+    $('dash').style.display = 'block';
+    $('loadmsg').style.display = 'none';
+    $('mgrid').style.display = 'block';
+    const sel = $('devsel');
+    if (sel && c.devs && c.devs.length) {
+      sel.innerHTML = '';
+      c.devs.forEach(function(d){ const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; sel.appendChild(o); });
+      sel.value = c.devId;
+    }
+    try { devId = c.devId; } catch(e) {}
+    let newest = 0;
+    Object.keys(c.data).forEach(function(k){ const a = c.data[k]; if (a && a[0] && a[0].ts) newest = Math.max(newest, a[0].ts); });
+    window.__lastDataTs = newest || c.at;
+    window.__fetchFailed = true; window.__cachedMode = true;
+    try { render(c.data); } catch(e) {}
+    if (!window.__retryIv) window.__retryIv = setInterval(function(){ if (window.__cachedMode) { try { doLogin(); } catch(e) {} } }, 30000);
+    return true;
+  };
+
+  // ───────── 2) history chart ─────────
+  let range = 6, model = null, loading = false;
+
+  function find(keys){
+    for (let i = 1; i < arguments.length; i++) {
+      const re = new RegExp(arguments[i], 'i');
+      const k = keys.filter(function(x){ return re.test(x); })[0];
+      if (k) return k;
+    }
+    return null;
+  }
+  function roles(keys){
+    const sump = find(keys, 'sump', 'underground|under_level');
+    const main = keys.filter(function(k){ return k !== sump; });
+    const tank = find(main, '^(WaterLevel|MainLevel|TankLevel|OverheadLevel|OHTLevel)$',
+      'main.*level|overhead.*level|tank.*level|oht', '^level$|^water$|^wl$', 'water.*level|level.*water',
+      'level|water|wl|litre|liter|height', 'lvl|lev');
+    const motor = find(keys, 'motor|pump|relay', 'switch|run|output', 'status|state');
+    return { tank: tank, sump: sump, motor: motor };
+  }
+  async function ensureKeys(){
+    if (window.__keys && window.__keys.length) return window.__keys;
+    const k = await api('/api/plugins/telemetry/DEVICE/' + devId + '/keys/timeseries');
+    window.__keys = Array.isArray(k) ? k : [];
+    return window.__keys;
+  }
+  async function getSeries(keys, start, end, interval, agg, limit){
+    if (!keys.length) return {};
+    let q = '/api/plugins/telemetry/DEVICE/' + devId + '/values/timeseries?keys=' + encodeURIComponent(keys.join(',')) +
+            '&startTs=' + start + '&endTs=' + end + '&limit=' + (limit || 1000) + '&agg=' + agg;
+    if (agg !== 'NONE') q += '&interval=' + interval;
+    return (await api(q)) || {};
+  }
+  function pts(obj, key){
+    const a = (obj && obj[key]) || [];
+    return a.map(function(p){ return { ts: +p.ts, v: parseFloat(p.value) }; })
+            .filter(function(p){ return !isNaN(p.v) && isFinite(p.ts); })
+            .sort(function(a, b){ return a.ts - b.ts; });
+  }
+  function isOn(v){ const s = String(v).trim().toLowerCase(); if (s === 'true' || s === 'on' || s === 'running') return true; const n = parseFloat(s); return !isNaN(n) && n > 0.5; }
+  function msg(t){ const m = $('hist-msg'); if (m) { m.textContent = t || ''; m.hidden = !t; } }
+
+  window.loadHistory = async function(){
+    if (loading) return;
+    if (typeof devId === 'undefined' || !devId || typeof token === 'undefined' || !token) { msg(tt('Waiting for data…')); return; }
+    loading = true; msg(tt('Loading history…'));
+    try {
+      const keys = await ensureKeys(), r = roles(keys);
+      const end = Date.now(), hours = range, start = end - hours * 3600000;
+      const interval = hours <= 6 ? 60000 : hours <= 24 ? 300000 : 1800000;
+      const lv = [r.tank, r.sump].filter(Boolean);
+      let L = await getSeries(lv, start, end, interval, 'AVG');
+      const none = lv.every(function(k){ return !(L[k] && L[k].length); });
+      if (none && lv.length && hours <= 24) L = await getSeries(lv, start, end, 0, 'NONE', 5000);   // server without averaged queries
+      let motor = [];
+      if (r.motor) {
+        const M = await getSeries([r.motor], start, end, interval, 'MAX');
+        motor = pts(M, r.motor).map(function(p){ return { ts: p.ts, on: p.v > 0.5, span: interval }; });
+        if (!motor.length && hours <= 24) {          // on/off stored as text: read the raw points
+          const raw = await getSeries([r.motor], start, end, 0, 'NONE', 5000);
+          const a = ((raw && raw[r.motor]) || []).map(function(p){ return { ts: +p.ts, on: isOn(p.value) }; })
+                    .sort(function(x, y){ return x.ts - y.ts; });
+          motor = a.map(function(p, i){ const nx = i + 1 < a.length ? a[i + 1].ts : end; return { ts: p.ts, on: p.on, span: Math.min(Math.max(0, nx - p.ts), 600000) }; });
+        }
+      }
+      model = { start: start, end: end, interval: interval, hours: hours, r: r,
+                tank: r.tank ? pts(L, r.tank) : [], sump: r.sump ? pts(L, r.sump) : [], motor: motor };
+      const base = model.tank.length ? model.tank : model.sump.length ? model.sump : model.motor;
+      const times = base.map(function(p){ return p.ts; });
+      const thr = Math.max(600000, interval * 2.5);
+      model.thr = thr; model.gaps = [];
+      for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > thr) model.gaps.push({ from: times[i - 1], to: times[i] });
+      if (times.length && end - times[times.length - 1] > thr) model.gaps.push({ from: times[times.length - 1], to: end });
+      draw(); stats(); msg('');
+      const sub = $('hist-sub'); const sel = $('devsel');
+      if (sub) sub.textContent = (sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '');
+    } catch(e) {
+      msg(T('hist_err', { e: (e && e.message) || e }));
+    }
+    loading = false;
+  };
+
+  function dur(min){
+    min = Math.round(min);
+    if (min < 60) return T('dur_m', { m: min });
+    const h = Math.floor(min / 60), m = min % 60;
+    return m === 0 ? T('dur_h', { h: h }) : T('dur_hm', { h: h, m: m });
+  }
+
+  function draw(){
+    if (!model) return;
+    const box = $('hist-chart'); if (!box) return;
+    const W = Math.max(280, box.clientWidth || 340), H = 250;
+    const m = { l: 34, r: 10, t: 10, b: 54 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const span = model.end - model.start;
+    const X = function(t){ return m.l + (t - model.start) / span * pw; };
+    const Y = function(v){ return m.t + (1 - Math.max(0, Math.min(100, v)) / 100) * ph; };
+    let s = '<svg id="hist-svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" role="img" aria-label="' + tt('History') + '" style="touch-action:pan-y">';
+    [0, 25, 50, 75, 100].forEach(function(v){
+      const y = Y(v).toFixed(1);
+      s += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '" class="hg' + (v === 50 ? ' h50' : '') + '"/>' +
+           '<text x="' + (m.l - 6) + '" y="' + (+y + 4) + '" text-anchor="end" class="hl">' + v + '</text>';
+    });
+    model.gaps.forEach(function(g){
+      const x1 = X(Math.max(g.from, model.start)), x2 = X(Math.min(g.to, model.end));
+      s += '<rect x="' + x1.toFixed(1) + '" y="' + m.t + '" width="' + Math.max(2, x2 - x1).toFixed(1) + '" height="' + ph + '" class="hgap"/>';
+    });
+    const ly = m.t + ph + 10, lh = 14;
+    s += '<rect x="' + m.l + '" y="' + ly + '" width="' + pw + '" height="' + lh + '" rx="4" class="hlane"/>';
+    model.motor.forEach(function(e){
+      if (!e.on) return;
+      const x1 = X(Math.max(e.ts, model.start)), x2 = X(Math.min(e.ts + e.span, model.end));
+      s += '<rect x="' + x1.toFixed(1) + '" y="' + ly + '" width="' + Math.max(1.5, x2 - x1).toFixed(1) + '" height="' + lh + '" rx="2" class="hon"/>';
+    });
+    // time axis
+    const step = model.hours <= 6 ? 1 : model.hours <= 24 ? 4 : 24;
+    const d0 = new Date(model.start); d0.setMinutes(0, 0, 0); d0.setHours(d0.getHours() + 1);
+    for (let t = d0.getTime(); t <= model.end; t += 3600000) {
+      const hr = new Date(t).getHours();
+      if (step === 24 ? hr !== 0 : hr % step !== 0) continue;
+      const x = X(t).toFixed(1);
+      const label = step === 24 ? new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short' })
+                                : new Date(t).toLocaleTimeString([], { hour: 'numeric' });
+      s += '<line x1="' + x + '" x2="' + x + '" y1="' + (ly + lh + 2) + '" y2="' + (ly + lh + 6) + '" class="hg"/>' +
+           '<text x="' + x + '" y="' + (H - 6) + '" text-anchor="middle" class="hl">' + label + '</text>';
+    }
+    function path(arr, cls){
+      let d = '';
+      arr.forEach(function(p, i){ d += (i === 0 || p.ts - arr[i - 1].ts > model.thr ? 'M' : 'L') + X(p.ts).toFixed(1) + ' ' + Y(p.v).toFixed(1) + ' '; });
+      return d ? '<path d="' + d + '" class="hline ' + cls + '"/>' : '';
+    }
+    s += path(model.tank, 'main') + path(model.sump, 'sump');
+    s += '<line id="hcur" class="hcur" y1="' + m.t + '" y2="' + (m.t + ph) + '" x1="0" x2="0" visibility="hidden"/></svg>';
+    box.innerHTML = s;
+
+    const svg = $('hist-svg'), cur = $('hcur');
+    function at(ev){
+      const rc = svg.getBoundingClientRect();
+      const x = (ev.clientX - rc.left) / rc.width * W;
+      if (x < m.l || x > W - m.r) return;
+      const t = model.start + (x - m.l) / pw * span;
+      cur.setAttribute('x1', x); cur.setAttribute('x2', x); cur.setAttribute('visibility', 'visible');
+      readout(t);
+    }
+    svg.addEventListener('pointermove', at);
+    svg.addEventListener('pointerdown', at);
+  }
+  function nearest(arr, t){
+    let best = null, bd = 1e18;
+    arr.forEach(function(p){ const d = Math.abs(p.ts - t); if (d < bd) { bd = d; best = p; } });
+    return best && bd <= Math.max(model.interval * 2, 120000) ? best : null;
+  }
+  function readout(t){
+    const el = $('hist-readout'); if (!el) return;
+    const a = nearest(model.tank, t), b = nearest(model.sump, t);
+    let mo = '—';
+    model.motor.forEach(function(e){ if (t >= e.ts && t < e.ts + e.span) mo = e.on ? tt('ON') : tt('OFF'); });
+    el.textContent = T('hist_readout', { t: fmtStamp(t), m: a ? Math.round(a.v) + '%' : '—', s: b ? Math.round(b.v) + '%' : '—', mo: mo });
+  }
+
+  function card(title, rows){
+    const c = document.createElement('div'); c.className = 'stat-card';
+    const h = document.createElement('div'); h.className = 'stat-h'; h.textContent = title; c.appendChild(h);
+    rows.forEach(function(r){
+      const d = document.createElement('div'); d.className = 'stat-row';
+      const a = document.createElement('span'); a.textContent = r[0];
+      const b = document.createElement('b'); b.textContent = r[1];
+      d.appendChild(a); d.appendChild(b); c.appendChild(d);
+    });
+    return c;
+  }
+  function lvlStats(arr){
+    const v = arr.map(function(p){ return Math.max(0, Math.min(100, p.v)); });
+    if (!v.length) return null;
+    const sum = v.reduce(function(x, y){ return x + y; }, 0);
+    return [[tt('Low'), Math.round(Math.min.apply(null, v)) + '%'], [tt('Average'), Math.round(sum / v.length) + '%'], [tt('High'), Math.round(Math.max.apply(null, v)) + '%']];
+  }
+  function stats(){
+    const box = $('hist-stats'); if (!box || !model) return;
+    box.innerHTML = '';
+    const a = lvlStats(model.tank), b = lvlStats(model.sump);
+    if (a) box.appendChild(card(tt('Main tank'), a));
+    if (b) box.appendChild(card(tt('Sump'), b));
+    if (model.r.motor && model.motor.length) {
+      let run = 0, starts = 0, longest = 0, cur = 0;
+      model.motor.forEach(function(e, i){
+        if (e.on) {
+          run += e.span;
+          const prev = model.motor[i - 1];
+          const contiguous = prev && prev.on && (e.ts - prev.ts) <= Math.max(prev.span * 2, 120000);
+          if (!contiguous) { cur = 0; if (prev) starts++; }
+          cur += e.span; if (cur > longest) longest = cur;
+        }
+      });
+      box.appendChild(card(tt('Motor'), [[tt('Ran for'), dur(run / 60000)], [tt('Starts'), String(starts)], [tt('Longest run'), dur(longest / 60000)]]));
+    } else {
+      box.appendChild(card(tt('Motor'), [[tt('Motor data not found'), '—']]));
+    }
+    const gaps = model.gaps.length;
+    let total = 0, big = 0;
+    model.gaps.forEach(function(g){ const d = Math.min(g.to, model.end) - Math.max(g.from, model.start); total += d; if (d > big) big = d; });
+    box.appendChild(card(tt('Power / data'), gaps
+      ? [[tt('Gaps'), T('gaps_val', { n: gaps, d: dur(total / 60000) })], [tt('Longest gap'), dur(big / 60000)]]
+      : [[tt('Gaps'), tt('No gaps')]]));
+  }
+  window.redrawHistory = function(){
+    if (!model) return;
+    draw(); stats();
+    const el = $('hist-readout'); if (el) el.textContent = tt('Touch the chart to see values');
+  };
+  document.addEventListener('click', function(ev){
+    const b = ev.target.closest && ev.target.closest('#hist-ranges .chip'); if (!b) return;
+    range = +b.getAttribute('data-r');
+    document.querySelectorAll('#hist-ranges .chip').forEach(function(x){ const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    window.loadHistory();
+  });
+  let rz; window.addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(function(){ if (model && !$('view-history').hidden) draw(); }, 150); });
+  window.openHistory = function(){ if (location.hash !== '#history') location.hash = 'history'; };
+
+  // ───────── 3) daily summary controls ─────────
+  function native(){ return !!(window.NativeApp && NativeApp.getBackgroundStatus); }
+  function smsg(t){ const m = $('sum-msg'); if (m) m.textContent = t || ''; }
+  window.loadSummaryUI = function(){
+    const on = $('sum-on'), tm = $('sum-time'); if (!on || !tm) return;
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('tw_summary') || '{}'); } catch(e) {}
+    if (native()) {
+      try {
+        const st = JSON.parse(NativeApp.getBackgroundStatus());
+        if (typeof st.summaryEnabled === 'boolean') { s.on = st.summaryEnabled; s.time = st.summaryTime || s.time; }
+        if (st.summaryMsg) smsg(st.summaryMsg);
+      } catch(e) {}
+    } else smsg(tt('Daily summaries are sent by the Android app.'));
+    on.checked = !!s.on; tm.value = s.time || '20:00';
+  };
+  window.saveSummaryUI = function(){
+    const on = $('sum-on').checked, tm = $('sum-time').value || '20:00';
+    try { localStorage.setItem('tw_summary', JSON.stringify({ on: on, time: tm })); } catch(e) {}
+    if (native() && NativeApp.saveSummary) { try { NativeApp.saveSummary(on, tm); } catch(e) {} smsg(on ? T('sum_saved', { t: tm }) : T('sum_off')); }
+    else smsg(tt('Daily summaries are sent by the Android app.'));
+  };
+  window.sendSummaryNowUI = function(){
+    if (!(native() && NativeApp.sendSummaryNow)) { smsg(tt('Daily summaries are sent by the Android app.')); return; }
+    smsg(tt('Sending…'));
+    try { NativeApp.sendSummaryNow(); } catch(e) {}
+    setTimeout(window.loadSummaryUI, 6000); setTimeout(window.loadSummaryUI, 14000);
+  };
+  const sd = $('sec-sum'); if (sd) sd.addEventListener('toggle', function(){ if (sd.open) window.loadSummaryUI(); });
+  window.loadSummaryUI();
+})();
+
 </script>
 </body>
 </html>

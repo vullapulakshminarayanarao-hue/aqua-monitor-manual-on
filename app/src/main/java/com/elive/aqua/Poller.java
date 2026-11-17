@@ -19,6 +19,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import org.json.JSONObject;
@@ -123,8 +124,10 @@ public class Poller {
                     "\u26a0\ufe0f POWER CUT / DEVICE OFFLINE", tgToken, tgChatId, tg);
                 if (sent || !tg) p.edit().putLong("bg_offline_since", newest).apply();
             }
+            updateLive(ctx, p, "Device offline - no data for " + mins + " min");
+            String sumOff = maybeSendSummary(ctx, p, base, token, devId, tele, tgToken, tgChatId, tg, false);
             // old readings must not trigger level alerts
-            return "Device offline - no data for " + mins + " min (last data " + fmtTime(newest) + ")";
+            return "Device offline - no data for " + mins + " min (last data " + fmtTime(newest) + ")" + sumOff;
         }
         String restored = "";
         if (offSince > 0 && newest > 0) {
@@ -136,6 +139,8 @@ public class Poller {
             restored = "Back online. ";
         }
 
+        updateLive(ctx, p, liveLine(tele));
+
         // ---- water levels ----
         StringBuilder sb = new StringBuilder();
         String[] parts = {
@@ -145,8 +150,245 @@ public class Poller {
             checkLevel(ctx, p, tele, nm, "water", "Water", tankThr, coolMins, tgToken, tgChatId, tg)
         };
         for (String s : parts) if (s != null) { if (sb.length() > 0) sb.append("; "); sb.append(s); }
-        if (sb.length() == 0) return restored + "No tank or sump level found in the device data";
-        return restored + (tg ? "" : "Telegram not saved - phone alerts only. ") + sb;
+        String sumTxt = maybeSendSummary(ctx, p, base, token, devId, tele, tgToken, tgChatId, tg, false);
+        if (sb.length() == 0) return restored + "No tank or sump level found in the device data" + sumTxt;
+        return restored + (tg ? "" : "Telegram not saved - phone alerts only. ") + sb + sumTxt;
+    }
+
+    // ---- level / motor keys: the same name rules the app uses ----
+
+    private static String findKey(java.util.List<String> keys, String... pats) {
+        for (String pat : pats) {
+            java.util.regex.Pattern re = java.util.regex.Pattern.compile(pat, java.util.regex.Pattern.CASE_INSENSITIVE);
+            for (String k : keys) if (re.matcher(k).find()) return k;
+        }
+        return null;
+    }
+
+    /** {main tank key, sump key, motor key}; any of them may be null. */
+    private static String[] roles(JSONObject latest) {
+        java.util.List<String> keys = new java.util.ArrayList<String>();
+        java.util.Iterator<String> it = latest.keys();
+        while (it.hasNext()) keys.add(it.next());
+        String sump = findKey(keys, "sump", "underground|under_level");
+        java.util.List<String> main = new java.util.ArrayList<String>(keys);
+        if (sump != null) main.remove(sump);
+        String tank = findKey(main,
+            "^(WaterLevel|MainLevel|TankLevel|OverheadLevel|OHTLevel)$",
+            "main.*level|overhead.*level|tank.*level|oht",
+            "^level$|^water$|^wl$", "water.*level|level.*water",
+            "level|water|wl|litre|liter|height", "lvl|lev");
+        String motor = findKey(keys, "motor|pump|relay", "switch|run|output", "status|state");
+        return new String[] { tank, sump, motor };
+    }
+
+    private static Object lastValue(JSONObject latest, String key) {
+        try { return latest.getJSONArray(key).getJSONObject(0).get("value"); } catch (Exception e) { return null; }
+    }
+
+    private static double numOf(Object v) {
+        try { return Double.parseDouble(String.valueOf(v).trim()); } catch (Exception e) { return Double.NaN; }
+    }
+
+    private static boolean isOnValue(Object v) {
+        String s = String.valueOf(v).trim().toLowerCase(Locale.US);
+        if (s.equals("true") || s.equals("on") || s.equals("running")) return true;
+        double d = numOf(s);
+        return !Double.isNaN(d) && d > 0.5;
+    }
+
+    private static int pct(double v) { return (int) Math.round(Math.max(0, Math.min(100, v))); }
+
+    /** "Main 42% · Sump 80% · Motor ON" for the status notification. */
+    private static String liveLine(String tele) {
+        try {
+            JSONObject o = new JSONObject(tele);
+            String[] r = roles(o);
+            StringBuilder sb = new StringBuilder();
+            if (r[0] != null) { double v = numOf(lastValue(o, r[0])); if (!Double.isNaN(v)) sb.append("Main ").append(pct(v)).append("%"); }
+            if (r[1] != null) { double v = numOf(lastValue(o, r[1])); if (!Double.isNaN(v)) { if (sb.length() > 0) sb.append(" \u00b7 "); sb.append("Sump ").append(pct(v)).append("%"); } }
+            if (r[2] != null) { Object raw = lastValue(o, r[2]); if (raw != null) { if (sb.length() > 0) sb.append(" \u00b7 "); sb.append("Motor ").append(isOnValue(raw) ? "ON" : "OFF"); } }
+            return sb.length() > 0 ? sb.toString() : "Monitoring water levels";
+        } catch (Exception e) { return "Monitoring water levels"; }
+    }
+
+    private static void updateLive(Context ctx, SharedPreferences p, String text) {
+        p.edit().putString("live_text", text).apply();
+        String sub = "Updated " + new SimpleDateFormat("hh:mm a", Locale.getDefault()).format(new Date());
+        MonitorService.updateNotification(ctx, text, sub);
+    }
+
+    // ---- daily summary ----
+
+    private static String fmtDur(long mins) {
+        if (mins < 60) return mins + " min";
+        long h = mins / 60, m = mins % 60;
+        return m == 0 ? h + " h" : h + " h " + m + " min";
+    }
+
+    /** Sorted-by-time points of one key: each row is {timestamp, value as text}. */
+    private static java.util.List<Object[]> series(JSONObject hist, String key) {
+        java.util.List<Object[]> out = new java.util.ArrayList<Object[]>();
+        try {
+            org.json.JSONArray a = hist.optJSONArray(key);
+            if (a == null) return out;
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject pt = a.getJSONObject(i);
+                out.add(new Object[] { Long.valueOf(pt.optLong("ts", 0)), pt.get("value") });
+            }
+            java.util.Collections.sort(out, new java.util.Comparator<Object[]>() {
+                @Override public int compare(Object[] x, Object[] y) { return ((Long) x[0]).compareTo((Long) y[0]); }
+            });
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    /** Text of the last-24-hours summary, or null if the history could not be read. */
+    private static String buildSummary(SharedPreferences p, String base, String token, String devId, String tele, long now) {
+        try {
+            JSONObject latest = new JSONObject(tele);
+            String[] r = roles(latest);
+            StringBuilder keys = new StringBuilder();
+            for (String k : r) if (k != null) { if (keys.length() > 0) keys.append(","); keys.append(k); }
+            if (keys.length() == 0) return null;
+
+            String url = base + "/api/plugins/telemetry/DEVICE/" + devId + "/values/timeseries?keys="
+                + URLEncoder.encode(keys.toString(), "UTF-8") + "&startTs=" + (now - 24L * 3600000L)
+                + "&endTs=" + now + "&limit=5000&agg=NONE";
+            String body = get(url, token);
+            if (body == null) return null;
+            JSONObject hist = new JSONObject(body);
+
+            long staleMs = Math.max(1, p.getInt("power_stale_minutes", 10)) * 60_000L;
+            StringBuilder sb = new StringBuilder();
+            sb.append("\ud83d\udcca DAILY SUMMARY\n");
+            String name = null;
+            String dj = get(base + "/api/device/" + devId, token);
+            if (dj != null) { try { name = new JSONObject(dj).optString("name", null); } catch (Exception ignored) {} }
+            sb.append("Trust Water Controller").append(name != null ? " \u00b7 " + name : "").append("\n");
+            sb.append("Last 24 hours, up to ").append(fmtTime(now)).append("\n\n");
+
+            String[] labels = { "Main tank", "Sump" };
+            for (int i = 0; i < 2; i++) {
+                if (r[i] == null) continue;
+                java.util.List<Object[]> s = series(hist, r[i]);
+                double mn = 1e9, mx = -1e9; int cnt = 0;
+                for (Object[] row : s) { double v = numOf(row[1]); if (Double.isNaN(v)) continue; v = Math.max(0, Math.min(100, v)); mn = Math.min(mn, v); mx = Math.max(mx, v); cnt++; }
+                double cur = numOf(lastValue(latest, r[i]));
+                sb.append(labels[i]).append(": ");
+                if (!Double.isNaN(cur)) sb.append("now ").append(pct(cur)).append("%");
+                if (cnt > 0) sb.append(" \u00b7 low ").append(pct(mn)).append("% \u00b7 high ").append(pct(mx)).append("%");
+                sb.append("\n");
+            }
+
+            if (r[2] != null) {
+                java.util.List<Object[]> s = series(hist, r[2]);
+                long cap = 10 * 60_000L, runMs = 0, longest = 0, cur = 0; int starts = 0;
+                for (int i = 0; i < s.size(); i++) {
+                    long t = (Long) s.get(i)[0];
+                    boolean on = isOnValue(s.get(i)[1]);
+                    long next = i + 1 < s.size() ? (Long) s.get(i + 1)[0] : now;
+                    long dur = Math.min(Math.max(0, next - t), cap);
+                    if (on) {
+                        runMs += dur;
+                        boolean contiguous = i > 0 && isOnValue(s.get(i - 1)[1]) && (t - (Long) s.get(i - 1)[0]) <= cap;
+                        if (!contiguous) { cur = 0; if (i > 0) starts++; }
+                        cur += dur; longest = Math.max(longest, cur);
+                    }
+                }
+                sb.append("Motor: ran ").append(fmtDur(runMs / 60000L)).append(" \u00b7 ").append(starts)
+                  .append(starts == 1 ? " start" : " starts");
+                if (longest > 0) sb.append(" \u00b7 longest ").append(fmtDur(longest / 60000L));
+                sb.append("\n");
+            }
+
+            // gaps in the data = power cuts or no internet at the site
+            String ref = r[0] != null ? r[0] : (r[1] != null ? r[1] : r[2]);
+            java.util.List<Object[]> s = series(hist, ref);
+            int gaps = 0; long gapMs = 0;
+            for (int i = 1; i < s.size(); i++) {
+                long d = (Long) s.get(i)[0] - (Long) s.get(i - 1)[0];
+                if (d > staleMs) { gaps++; gapMs += d; }
+            }
+            if (!s.isEmpty() && now - (Long) s.get(s.size() - 1)[0] > staleMs) { gaps++; gapMs += now - (Long) s.get(s.size() - 1)[0]; }
+            sb.append("Power / data: ");
+            sb.append(gaps == 0 ? "no gaps" : gaps + (gaps == 1 ? " gap" : " gaps") + " (" + fmtDur(gapMs / 60000L) + " in total)");
+            return sb.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "buildSummary", e);
+            return null;
+        }
+    }
+
+    private static String ymd() {
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+    }
+
+    /** Sends the daily summary when it is due. force = send now (button). Returns text for the status line. */
+    private static String maybeSendSummary(Context ctx, SharedPreferences p, String base, String token, String devId,
+                                           String tele, String tgTok, String tgChat, boolean tg, boolean force) {
+        try {
+            if (!force && !p.getBoolean("summary_enabled", false)) return "";
+            if (!tg) return force ? "Summary not sent: Telegram is not saved" : "";
+            long now = System.currentTimeMillis();
+            if (!force) {
+                String[] hm = p.getString("summary_time", "20:00").split(":");
+                int target = Integer.parseInt(hm[0].trim()) * 60 + Integer.parseInt(hm[1].trim());
+                Calendar c = Calendar.getInstance();
+                int nowMin = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
+                if (nowMin < target) return "";
+                if (ymd().equals(p.getString("summary_last_date", ""))) return "";
+                if (now - p.getLong("summary_last_try", 0) < 10 * 60_000L) return "";
+            }
+            p.edit().putLong("summary_last_try", now).apply();
+            String msg = buildSummary(p, base, token, devId, tele, now);
+            if (msg == null) {
+                p.edit().putString("summary_last_msg", "Could not read the last 24 hours of data").apply();
+                return "; summary: could not read history";
+            }
+            boolean ok = sendTelegram(tgTok, tgChat, msg);
+            String res = ok ? "Summary sent " + fmtTime(now) : "Summary not delivered (Telegram error), will retry";
+            SharedPreferences.Editor ed = p.edit().putString("summary_last_msg", res);
+            if (ok && !force) ed.putString("summary_last_date", ymd());
+            ed.apply();
+            return "; " + res.toLowerCase(Locale.US).replace("summary", "summary");
+        } catch (Exception e) {
+            Log.e(TAG, "summary", e);
+            return "";
+        }
+    }
+
+    /** "Send summary now" button: runs a full check path just for the summary. */
+    public static void sendSummaryNow(Context ctx) {
+        synchronized (LOCK) {
+            SharedPreferences p = ctx.getSharedPreferences("aqua_prefs", Context.MODE_PRIVATE);
+            String res;
+            try {
+                String tgTok = p.getString("tg_token", "").trim(), tgChat = p.getString("tg_chatid", "").trim();
+                String base = p.getString("tb_host", BASE).trim();
+                if (base.isEmpty()) base = BASE;
+                while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+                String email = p.getString("tb_email", "").trim(), pw = p.getString("tb_password", "").trim();
+                if (email.isEmpty() || pw.isEmpty()) res = "Summary not sent: not signed in";
+                else if (tgTok.isEmpty() || tgChat.isEmpty()) res = "Summary not sent: Telegram is not saved";
+                else {
+                    String token = authToken(p, base, email, pw, false);
+                    String devId = p.getString("ctl_device_id", "").trim();
+                    if (devId.isEmpty()) devId = p.getString("bg_device_id", "").trim();
+                    if (token == null) res = "Summary not sent: sign-in failed";
+                    else if (devId.isEmpty()) res = "Summary not sent: no device selected";
+                    else {
+                        String tele = getTelemetry(base, token, devId);
+                        if (tele == null) res = "Summary not sent: no data from e-live.in";
+                        else {
+                            maybeSendSummary(ctx, p, base, token, devId, tele, tgTok, tgChat, true, true);
+                            res = p.getString("summary_last_msg", "Done");
+                        }
+                    }
+                }
+            } catch (Exception e) { res = "Summary error: " + e.getMessage(); }
+            p.edit().putString("summary_last_msg", res).apply();
+        }
     }
 
     // ---- helpers for the checks above ----

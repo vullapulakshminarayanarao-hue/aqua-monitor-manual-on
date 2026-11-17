@@ -69,6 +69,10 @@ public class NativeBridge {
             o.put("threshold", sp.getInt("threshold", 30));
             o.put("thresholdMap", safe(sp.getString("threshold_map", "{}")));
             o.put("cooldownMins", sp.getInt("cooldown_minutes", 60));
+            o.put("summaryEnabled", sp.getBoolean("summary_enabled", false));
+            o.put("summaryTime", sp.getString("summary_time", "20:00"));
+            o.put("summaryMsg", safe(sp.getString("summary_last_msg", "")));
+            o.put("liveText", safe(sp.getString("live_text", "")));
             return o.toString();
         } catch (Exception e) { return "{}"; }
     }
@@ -134,6 +138,35 @@ public class NativeBridge {
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(i);
         } catch (Exception ignored) {}
+    }
+
+    /** Daily Telegram summary: on/off and the time of day (HH:mm). */
+    @JavascriptInterface
+    public void saveSummary(boolean enabled, String hhmm) {
+        try {
+            String t = hhmm == null ? "20:00" : hhmm.trim();
+            if (!t.matches("^([01]?\\d|2[0-3]):[0-5]\\d$")) t = "20:00";
+            SharedPreferences.Editor e = p().edit().putBoolean("summary_enabled", enabled).putString("summary_time", t);
+            if (enabled) {
+                // if today's time has already passed, the first summary is tomorrow's
+                String[] hm = t.split(":");
+                int target = Integer.parseInt(hm[0]) * 60 + Integer.parseInt(hm[1]);
+                java.util.Calendar c = java.util.Calendar.getInstance();
+                int nowMin = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE);
+                if (nowMin >= target) {
+                    e.putString("summary_last_date", new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date()));
+                }
+            }
+            e.apply();
+        } catch (Exception ignored) {}
+    }
+
+    /** Sends the daily summary immediately (off the UI thread); the result shows in the status panel. */
+    @JavascriptInterface
+    public void sendSummaryNow() {
+        final Context app = ctx.getApplicationContext();
+        p().edit().putString("summary_last_msg", "Sending…").apply();
+        new Thread(new Runnable() { public void run() { Poller.sendSummaryNow(app); } }).start();
     }
 
     /** Runs the background alert check once, right now (off the UI thread). */
